@@ -1,4 +1,4 @@
-# DraftKubeShadow
+# KubeShadow
 
 A Kubernetes security testing tool for analyzing and exploiting cluster security misconfigurations.
 
@@ -16,7 +16,7 @@ A Kubernetes security testing tool for analyzing and exploiting cluster security
 ## Project Structure
 
 ```
-DraftKubeShadow/
+KubeShadow/
 ├── docs/               # Detailed documentation
 │   ├── sidecarinject.md   # Sidecar injection module
 │   ├── kubeletjack.md     # Kubelet exploitation module

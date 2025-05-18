@@ -10,9 +10,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "draftkubeshadow",
-	Short: "DraftKubeShadow - Kubernetes offensive security tool",
-	Long: `DraftKubeShadow is a Kubernetes offensive security tool designed for red team operations.
+	Use:   "kubeshadow",
+	Short: "KubeShadow - Kubernetes offensive security tool",
+	Long: `KubeShadow is a Kubernetes offensive security tool designed for red team operations.
 It provides capabilities for reconnaissance, pod injection, and exploitation of misconfigured components.`,
 }
 
