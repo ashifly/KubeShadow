@@ -1,0 +1,26 @@
+{
+    "kind": "Pod",
+    "apiVersion": "v1",
+    "metadata": {
+      "name": "changeme",
+      "namespace": "changeme",
+      "labels": {
+        "app": "kshadow"
+      }
+    },
+    "spec": {
+      "containers": [
+        {
+          "name": "shadow-container",
+          "image": "alpine:latest",
+          "command": ["sh", "-c", "while true; do sleep 3600; done"],
+          "securityContext": {
+            "privileged": true
+          }
+        }
+      ],
+      "hostNetwork": true,
+      "restartPolicy": "Never"
+    }
+  }
+  

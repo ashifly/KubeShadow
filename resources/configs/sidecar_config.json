@@ -1,0 +1,16 @@
+{
+    "name": "debug-sidecar",
+    "image": "busybox:latest",
+    "command": ["/bin/sh"],
+    "args": ["-c", "while true; do sleep 30; done"],
+    "env": [
+        {
+            "name": "POD_NAME",
+            "valueFrom": {
+                "fieldRef": {
+                    "fieldPath": "metadata.name"
+                }
+            }
+        }
+    ]
+} 
