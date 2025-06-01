@@ -14,11 +14,14 @@ type Config struct {
 	ModuleConfig map[string]interface{} `yaml:"module_config"`
 
 	// Global configuration
-	GlobalConfig struct {
-		KubeConfig string `yaml:"kubeconfig"`
-		Stealth    bool   `yaml:"stealth"`
-		Debug      bool   `yaml:"debug"`
-	} `yaml:"global_config"`
+	GlobalConfig GlobalConfig `yaml:"global_config"`
+}
+
+// GlobalConfig represents the global configuration settings
+type GlobalConfig struct {
+	KubeConfig string `yaml:"kubeconfig"`
+	Stealth    bool   `yaml:"stealth"`
+	Debug      bool   `yaml:"debug"`
 }
 
 // LoadConfig loads configuration from file
@@ -41,6 +44,7 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	config := &Config{
 		ModuleConfig: make(map[string]interface{}),
+		GlobalConfig: GlobalConfig{},
 	}
 
 	if err := yaml.Unmarshal(data, config); err != nil {
