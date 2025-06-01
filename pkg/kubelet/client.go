@@ -29,15 +29,14 @@ type podList struct {
 // InsecureTLS returns an insecure TLS configuration for testing kubelet APIs
 func InsecureTLS() *tls.Config {
 	return &tls.Config{
-		InsecureSkipVerify: true,
+		MinVersion: tls.VersionTLS12,
 	}
 }
 
 // SecureTLS returns a secure TLS configuration that verifies certificates
 func SecureTLS() *tls.Config {
 	return &tls.Config{
-		InsecureSkipVerify: false,
-		MinVersion:         tls.VersionTLS12,
+		MinVersion: tls.VersionTLS12,
 	}
 }
 
@@ -47,7 +46,11 @@ func ListPods(client *http.Client, baseURL string) ([]Pod, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pods: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			err = fmt.Errorf("failed to close response body: %v", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -77,7 +80,11 @@ func GetPodLogs(client *http.Client, baseURL string, pod Pod) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get logs: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			err = fmt.Errorf("failed to close response body: %v", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to get logs, status: %d", resp.StatusCode)
@@ -104,7 +111,11 @@ func TryExec(client *http.Client, baseURL string, pod Pod, command []string) (st
 	if err != nil {
 		return "", fmt.Errorf("failed to exec command: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			err = fmt.Errorf("failed to close response body: %v", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("exec failed with status: %d", resp.StatusCode)
