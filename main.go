@@ -7,10 +7,11 @@ import (
 	// Import specific module sub-packages
 	cluster_exploit "kubeshadow/modules/cluster_exploit"
 	multi_cloud "kubeshadow/modules/multi_cloud"
+	out_cluster "kubeshadow/modules/out_cluster"
 	recon "kubeshadow/modules/recon"
 	stealth "kubeshadow/modules/stealth"
 
-	// Note: ai_engine and out_cluster packages are not yet exposed as commands
+	// Note: ai_engine package is not yet exposed as commands
 
 	"kubeshadow/pkg/banner"
 
@@ -42,10 +43,13 @@ func init() {
 	rootCmd.AddCommand(cluster_exploit.SidecarInjectCmd)
 	rootCmd.AddCommand(multi_cloud.MetadataHijackCmd)
 	rootCmd.AddCommand(multi_cloud.CloudElevatorCmd)
+	rootCmd.AddCommand(multi_cloud.AssumeRoleAbuseCmd)
 	rootCmd.AddCommand(cluster_exploit.RBACEscalateCmd)
 	rootCmd.AddCommand(stealth.AuditBypassCmd)
 	rootCmd.AddCommand(stealth.DNSCachePoisonCmd)
+	rootCmd.AddCommand(stealth.CleanupCmd)
 	rootCmd.AddCommand(cluster_exploit.NamespacePivotCmd)
+	rootCmd.AddCommand(out_cluster.RegistryBackdoorCmd)
 
 	// Since the root command's Run function now explicitly prints help,
 	// we might remove the default help command printing from Cobra.

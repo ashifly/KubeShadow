@@ -110,3 +110,12 @@ func IsRuntimeError(err error) bool {
 	}
 	return false
 }
+
+// NewMultiError creates a new error that wraps multiple causes
+func NewMultiError(errs []error) error {
+	return &KubeShadowError{
+		Type:    ErrRuntime,
+		Message: "multiple errors occurred",
+		Err:     errs[0], // Use first error as the main cause
+	}
+}
