@@ -25,6 +25,10 @@ jobs:
       uses: golangci/golangci-lint-action@v2
       with:
         version: v1.64.8
+        args: --verbose
+        skip-cache: false
+        skip-pkg-cache: false
+        skip-build-cache: false
 
     - name: Run tests
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
