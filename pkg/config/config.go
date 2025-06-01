@@ -39,8 +39,11 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %v", err)
 	}
 
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	config := &Config{
+		ModuleConfig: make(map[string]interface{}),
+	}
+
+	if err := yaml.Unmarshal(data, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 
@@ -48,7 +51,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("invalid config: %v", err)
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 // SaveConfig saves configuration to file
