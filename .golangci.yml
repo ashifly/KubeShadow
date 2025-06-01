@@ -41,6 +41,7 @@ linters-settings:
       - G402 # TLS InsecureSkipVerify set true
 
 output:
-  format: colored-line-number
+  formats:
+    - colored-line-number  # updated from deprecated 'format'
   print-issued-lines: true
   print-linter-name: true

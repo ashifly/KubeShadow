@@ -21,10 +21,19 @@ jobs:
     - name: Install dependencies
       run: go mod download
 
+    - name: Check for Go files
+      id: check_go_files
+      run: |
+        if ! find . -name '*.go' | grep -q .; then
+          echo "No Go files found, skipping lint."
+          echo "skip_lint=true" >> $GITHUB_OUTPUT
+        fi
+
     - name: Run linter
+      if: steps.check_go_files.outputs.skip_lint != 'true'
       uses: golangci/golangci-lint-action@v3
       with:
-        version: v1.57.2  # Updated to stable supported version
+        version: v1.57.2
         args: --out-format=github-actions --verbose
         skip-pkg-cache: false
         skip-build-cache: false
