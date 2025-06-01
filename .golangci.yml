@@ -1,3 +1,5 @@
+version: "1"
+
 linters:
   enable:
     - gofmt
@@ -16,28 +18,5 @@ linters:
     - goimports
 
 run:
-  deadline: 5m
-  tests: true
-  skip-dirs:
-    - vendor/
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - dupl
-        - gocyclo
-
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 2
-    min-occurrences: 3
-  gosec:
-    excludes:
-      - G104 # Unhandled errors
-      - G107 # URL provided to HTTP request as taint input
-      - G402 # TLS InsecureSkipVerify set true 
+  timeout: 5m
+  tests: true 
