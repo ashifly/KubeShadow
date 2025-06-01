@@ -26,8 +26,17 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	// Add module commands
+	// Add all available commands
+	rootCmd.AddCommand(modules.EtcdInjectCmd)
+	rootCmd.AddCommand(modules.KubeletJackerCmd)
+	rootCmd.AddCommand(modules.ReconCmd)
 	rootCmd.AddCommand(modules.SidecarInjectCmd)
+	rootCmd.AddCommand(modules.MetadataHijackCmd)
+	rootCmd.AddCommand(modules.CloudElevatorCmd)
+	rootCmd.AddCommand(modules.RBACEscalateCmd)
+	rootCmd.AddCommand(modules.AuditBypassCmd)
+	rootCmd.AddCommand(modules.DNSCachePoisonCmd)
+	rootCmd.AddCommand(modules.NamespacePivotCmd)
 }
 
 func main() {
