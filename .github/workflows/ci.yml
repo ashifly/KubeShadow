@@ -25,7 +25,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.57.2
-          args: --out-format=github-actions --verbose --timeout=5m ./ ./cmd ./pkg ./modules
+          args: --out-format=github-actions --verbose --timeout=5m
           skip-pkg-cache: false
           skip-build-cache: false
 
