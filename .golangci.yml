@@ -20,10 +20,10 @@ linters:
 run:
   deadline: 5m
   tests: true
-  skip-dirs:
-    - vendor/
 
 issues:
+  exclude-dirs:
+    - vendor/
   exclude-rules:
     - path: _test\.go
       linters:
@@ -45,6 +45,7 @@ linters-settings:
       - G402 # TLS InsecureSkipVerify set true
 
 output:
-  format: colored-line-number
+  formats:
+    - colored-line-number
   print-issued-lines: true
   print-linter-name: true 
