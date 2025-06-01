@@ -1,9 +1,45 @@
 package sidecar
 
 import (
+	"context"
 	"kubeshadow/pkg/testutil"
 	"testing"
 )
+
+func TestSidecarModule(t *testing.T) {
+	module := NewSidecarModule()
+	if module == nil {
+		t.Fatal("Failed to create sidecar module")
+	}
+
+	// Test command setup
+	cmd := module.Command()
+	if cmd == nil {
+		t.Fatal("Command is nil")
+	}
+
+	// Test flag setting
+	if err := cmd.Flags().Set("mode", "api"); err != nil {
+		t.Fatalf("Failed to set mode flag: %v", err)
+	}
+	if err := cmd.Flags().Set("pod", "test-pod"); err != nil {
+		t.Fatalf("Failed to set pod flag: %v", err)
+	}
+	if err := cmd.Flags().Set("namespace", "default"); err != nil {
+		t.Fatalf("Failed to set namespace flag: %v", err)
+	}
+
+	// Test execution
+	if err := module.Execute(context.Background()); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	// Test status
+	status := module.GetStatus()
+	if status != "ready" {
+		t.Errorf("Expected status 'ready', got '%s'", status)
+	}
+}
 
 func TestSidecarModule_Integration(t *testing.T) {
 	// Skip if not running integration tests
@@ -30,8 +66,8 @@ func TestSidecarModule_Integration(t *testing.T) {
 		}
 
 		status := module.GetStatus()
-		if status.Status != "stopped" {
-			t.Errorf("Expected status 'stopped', got %s", status.Status)
+		if status != "stopped" {
+			t.Errorf("Expected status 'stopped', got %s", status)
 		}
 	})
 
@@ -51,8 +87,8 @@ func TestSidecarModule_Integration(t *testing.T) {
 		}
 
 		status := module.GetStatus()
-		if status.Status != "stopped" {
-			t.Errorf("Expected status 'stopped', got %s", status.Status)
+		if status != "stopped" {
+			t.Errorf("Expected status 'stopped', got %s", status)
 		}
 	})
 

@@ -11,14 +11,14 @@ import (
 // Config represents the module configuration
 type Config struct {
 	// Module-specific configuration
-	ModuleConfig map[string]interface{} `json:"module_config"`
+	ModuleConfig map[string]interface{} `yaml:"module_config"`
 
 	// Global configuration
 	GlobalConfig struct {
-		KubeConfig string `json:"kubeconfig"`
-		Stealth    bool   `json:"stealth"`
-		Debug      bool   `json:"debug"`
-	} `json:"global_config"`
+		KubeConfig string `yaml:"kubeconfig"`
+		Stealth    bool   `yaml:"stealth"`
+		Debug      bool   `yaml:"debug"`
+	} `yaml:"global_config"`
 }
 
 // LoadConfig loads configuration from file

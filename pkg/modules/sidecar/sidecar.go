@@ -27,7 +27,7 @@ type SidecarConfig struct {
 	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
 }
 
-// SidecarModule implements the sidecar injection module
+// SidecarModule represents a sidecar injection module
 type SidecarModule struct {
 	*base.BaseModule
 	mode      string
@@ -35,29 +35,48 @@ type SidecarModule struct {
 	namespace string
 	config    string
 	clientset *kubernetes.Clientset
+	cmd       *cobra.Command
 }
 
 // NewSidecarModule creates a new sidecar module
 func NewSidecarModule() *SidecarModule {
-	module := &SidecarModule{
-		BaseModule: base.NewBaseModule("sidecar", "Kubernetes sidecar injection module"),
-	}
-
 	cmd := &cobra.Command{
 		Use:   "sidecar",
-		Short: "Inject sidecar containers into Kubernetes pods",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return module.Execute(cmd.Context())
-		},
+		Short: "Inject a sidecar container into a pod",
 	}
 
-	cmd.Flags().StringVar(&module.mode, "mode", "api", "Injection mode (api or etcd)")
-	cmd.Flags().StringVar(&module.pod, "pod", "", "Target pod name")
-	cmd.Flags().StringVar(&module.namespace, "namespace", "default", "Target namespace")
-	cmd.Flags().StringVar(&module.config, "config", "", "Path to sidecar configuration file")
+	module := &SidecarModule{
+		BaseModule: base.NewBaseModule("sidecar", "Kubernetes sidecar injection module"),
+		cmd:        cmd,
+	}
 
-	module.SetCommand(cmd)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return module.Execute(cmd.Context())
+	}
+
+	// Add flags
+	module.cmd.Flags().StringVar(&module.mode, "mode", "api", "Injection mode (api or manifest)")
+	module.cmd.Flags().StringVar(&module.pod, "pod", "", "Target pod name")
+	module.cmd.Flags().StringVar(&module.namespace, "namespace", "default", "Target namespace")
+	module.cmd.Flags().StringVar(&module.config, "config", "", "Path to sidecar configuration file")
+
+	module.SetCommand(module.cmd)
 	return module
+}
+
+// Command returns the cobra command for this module
+func (m *SidecarModule) Command() *cobra.Command {
+	return m.cmd
+}
+
+// SetCommand sets the cobra command for this module
+func (m *SidecarModule) SetCommand(cmd *cobra.Command) {
+	m.cmd = cmd
+}
+
+// GetStatus returns the current status of the module
+func (m *SidecarModule) GetStatus() string {
+	return "ready"
 }
 
 // Validate validates the sidecar module configuration
@@ -74,7 +93,7 @@ func (m *SidecarModule) Validate() error {
 		return errors.New(errors.ErrValidation, "config path is required", nil)
 	}
 
-	if m.mode != "api" && m.mode != "etcd" {
+	if m.mode != "api" && m.mode != "manifest" {
 		return errors.New(errors.ErrModule, fmt.Sprintf("unsupported mode: %s", m.mode), nil)
 	}
 
@@ -122,7 +141,7 @@ func (m *SidecarModule) setupK8sClient() error {
 	return nil
 }
 
-// Execute runs the sidecar injection module
+// Execute runs the sidecar injection
 func (m *SidecarModule) Execute(ctx context.Context) error {
 	if err := m.BaseModule.Execute(ctx); err != nil {
 		return err
