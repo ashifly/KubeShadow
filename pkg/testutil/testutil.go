@@ -112,3 +112,21 @@ func CreateTestFile(t *testing.T, dir, name, content string) string {
 	}
 	return path
 }
+
+// CreateTempConfig creates a temporary config file with the given content and returns its path
+func CreateTempConfig(t *testing.T, content string) string {
+	t.Helper()
+	tmpfile, err := os.CreateTemp("", "kubeshadow-config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp config file: %v", err)
+	}
+	if err := os.WriteFile(tmpfile.Name(), []byte(content), 0600); err != nil {
+		t.Fatalf("Failed to write to temp config file: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Remove(tmpfile.Name()); err != nil {
+			t.Logf("Warning: failed to remove temp config file: %v", err)
+		}
+	})
+	return tmpfile.Name()
+}

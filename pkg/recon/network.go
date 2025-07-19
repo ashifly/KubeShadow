@@ -335,6 +335,14 @@ func getTCPPorts() ([]Port, error) {
 			process, user = getProcessInfo(inode)
 		}
 
+		// Parse remote address and port
+		remoteAddr := fields[2]
+		// Parse state
+		state, err := strconv.ParseInt(fields[3], 16, 32)
+		if err != nil {
+			continue
+		}
+
 		ports = append(ports, Port{
 			Number:      int(localPort),
 			Protocol:    "tcp",
@@ -387,6 +395,9 @@ func getUDPPorts() ([]Port, error) {
 			inode := fields[9]
 			process, user = getProcessInfo(inode)
 		}
+
+		// Parse remote address and port
+		remoteAddr := fields[2]
 
 		ports = append(ports, Port{
 			Number:      int(localPort),

@@ -538,38 +538,47 @@ func getResourceLimits(pid int) (ProcessLimits, error) {
 			continue
 		}
 
-		switch fields[0] {
-		case "Max", "file", "descriptors":
+		// Use the first two fields to match resource type
+		resource := strings.ToLower(fields[0] + " " + fields[1])
+		switch resource {
+		case "max open":
 			limits.MaxFileDescriptors = value
-		case "Max", "processes":
+		case "max processes":
 			limits.MaxProcesses = value
-		case "Max", "stack", "size":
+		case "max stack":
 			limits.MaxStackSize = value
-		case "Max", "core", "file", "size":
+		case "max core":
 			limits.MaxCoreFileSize = value
-		case "Max", "resident", "set":
+		case "max resident":
 			limits.MaxResidentSetSize = value
-		case "Max", "virtual", "memory":
+		case "max virtual":
 			limits.MaxVirtualMemory = value
-		case "Max", "cpu", "time":
+		case "max cpu":
 			limits.MaxCPUTime = value
-		case "Max", "file", "size":
+		case "max file":
 			limits.MaxFileSize = value
-		case "Max", "data", "size":
+		case "max data":
 			limits.MaxDataSize = value
-		case "Max", "address", "space":
+		case "max address":
 			limits.MaxAddressSpace = value
-		case "Max", "locked", "memory":
+		case "max locked":
 			limits.MaxLockedMemory = value
-		case "Max", "real-time", "priority":
-			limits.MaxRealTimePriority = value
-		case "Max", "real-time", "timeout":
-			limits.MaxRealTimeTimeout = value
-		case "Max", "message", "queues":
+		case "max real-time":
+			// Could be priority or timeout, check next field if available
+			if len(fields) > 2 {
+				sub := strings.ToLower(fields[2])
+				switch sub {
+				case "priority":
+					limits.MaxRealTimePriority = value
+				case "timeout":
+					limits.MaxRealTimeTimeout = value
+				}
+			}
+		case "max message":
 			limits.MaxMessageQueues = value
-		case "Max", "pending", "signals":
+		case "max pending":
 			limits.MaxPendingSignals = value
-		case "Max", "POSIX", "message", "queues":
+		case "max posix":
 			limits.MaxPOSIXMessageQueues = value
 		}
 	}
