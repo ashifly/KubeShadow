@@ -29,6 +29,10 @@ var ReconCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to get k8s-only flag: %w", err)
 		}
+		showRBAC, err := cmd.Flags().GetBool("show-rbac")
+		if err != nil {
+			return fmt.Errorf("failed to get show-rbac flag: %w", err)
+		}
 
 		// Validate flags
 		if cloudOnly && k8sOnly {
@@ -39,14 +43,14 @@ var ReconCmd = &cobra.Command{
 		var reconErrors []error
 
 		if !cloudOnly {
-			fmt.Println("[+] Starting Kubernetes Recon...")
-			if err := recon.K8sRecon(ctx, kubeconfig, stealth); err != nil {
+			fmt.Println("🔍 Starting Kubernetes Recon...")
+			if err := recon.K8sRecon(ctx, kubeconfig, stealth, showRBAC); err != nil {
 				reconErrors = append(reconErrors, fmt.Errorf("Kubernetes recon failed: %w", err))
 			}
 		}
 
 		if !k8sOnly {
-			fmt.Println("[+] Starting Cloud Metadata Recon...")
+			fmt.Println("☁️  Starting Cloud Metadata Recon...")
 			if err := recon.CloudRecon(ctx, stealth); err != nil {
 				reconErrors = append(reconErrors, fmt.Errorf("Cloud recon failed: %w", err))
 			}
@@ -64,4 +68,5 @@ func init() {
 	ReconCmd.Flags().Bool("stealth", true, "Enable stealth mode (minimal API calls)")
 	ReconCmd.Flags().Bool("cloud-only", false, "Perform only cloud metadata recon")
 	ReconCmd.Flags().Bool("k8s-only", false, "Perform only Kubernetes API recon")
+	ReconCmd.Flags().Bool("show-rbac", false, "Show detailed RBAC analysis (RoleBindings and ClusterRoleBindings)")
 }

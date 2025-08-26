@@ -201,7 +201,7 @@ func checkNamespacePivot(clientset *kubernetes.Clientset, ctx context.Context, n
 }
 
 // K8sRecon performs Kubernetes API reconnaissance
-func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool) error {
+func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC bool) error {
 	// Expand ~ to home directory if present
 	if kubeconfigPath == "~/.kube/config" {
 		home := homedir.HomeDir()
@@ -220,56 +220,60 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool) error {
 	}
 
 	// Get nodes
+	fmt.Printf("\n🔍 NODE DISCOVERY\n")
+	fmt.Printf("─" + strings.Repeat("─", 50) + "\n")
 	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Printf("[!] Failed to list nodes: %v\n", err)
+		fmt.Printf("❌ Failed to list nodes: %v\n", err)
 	} else {
-		fmt.Printf("[+] Found %d nodes\n", len(nodes.Items))
+		fmt.Printf("✅ Found %d nodes\n", len(nodes.Items))
 		for _, node := range nodes.Items {
-			fmt.Printf("    - %s\n", node.Name)
+			fmt.Printf("   • %s\n", node.Name)
 			if !stealth {
 				// In non-stealth mode, get more node details
-				fmt.Printf("      OS: %s\n", node.Status.NodeInfo.OSImage)
-				fmt.Printf("      Kubelet: %s\n", node.Status.NodeInfo.KubeletVersion)
+				fmt.Printf("     OS: %s\n", node.Status.NodeInfo.OSImage)
+				fmt.Printf("     Kubelet: %s\n", node.Status.NodeInfo.KubeletVersion)
 			}
 		}
 	}
 
 	// Get namespaces
+	fmt.Printf("\n📁 NAMESPACE ANALYSIS\n")
+	fmt.Printf(strings.Repeat("─", 30) + "\n")
 	namespaces, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		fmt.Printf("[!] Failed to list namespaces: %v\n", err)
+		fmt.Printf("❌ Failed to list namespaces: %v\n", err)
 	} else {
-		fmt.Printf("\n[+] Found %d namespaces\n", len(namespaces.Items))
+		fmt.Printf("✅ Found %d namespaces\n", len(namespaces.Items))
 		for _, ns := range namespaces.Items {
-			fmt.Printf("    - %s\n", ns.Name)
+			fmt.Printf("   • %s\n", ns.Name)
 			if !stealth {
 				// List pods in namespace
 				pods, err := clientset.CoreV1().Pods(ns.Name).List(ctx, metav1.ListOptions{})
 				if err != nil {
-					fmt.Printf("      [!] Failed to list pods: %v\n", err)
+					fmt.Printf("     ❌ Failed to list pods: %v\n", err)
 					continue
 				}
-				fmt.Printf("      Pods: %d\n", len(pods.Items))
+				fmt.Printf("     Pods: %d\n", len(pods.Items))
 
 				// Security checks for pods
 				for _, pod := range pods.Items {
 					for _, c := range pod.Spec.Containers {
 						if pod.Spec.HostNetwork {
-							fmt.Printf("      [!] Pod %s/%s uses hostNetwork\n", pod.Namespace, pod.Name)
+							fmt.Printf("     ⚠️  Pod %s/%s uses hostNetwork\n", pod.Namespace, pod.Name)
 						}
 						if c.SecurityContext != nil {
 							if c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
-								fmt.Printf("      [!] Pod %s/%s container %s is privileged\n", pod.Namespace, pod.Name, c.Name)
+								fmt.Printf("     🔴 Pod %s/%s container %s is privileged\n", pod.Namespace, pod.Name, c.Name)
 							}
 							if c.SecurityContext.AllowPrivilegeEscalation != nil && *c.SecurityContext.AllowPrivilegeEscalation {
-								fmt.Printf("      [!] Pod %s/%s container %s allows privilege escalation\n", pod.Namespace, pod.Name, c.Name)
+								fmt.Printf("     🟡 Pod %s/%s container %s allows privilege escalation\n", pod.Namespace, pod.Name, c.Name)
 							}
 							if c.SecurityContext.Capabilities != nil && len(c.SecurityContext.Capabilities.Add) > 0 {
-								fmt.Printf("      [!] Pod %s/%s container %s adds capabilities: %v\n", pod.Namespace, pod.Name, c.Name, c.SecurityContext.Capabilities.Add)
+								fmt.Printf("     🟠 Pod %s/%s container %s adds capabilities: %v\n", pod.Namespace, pod.Name, c.Name, c.SecurityContext.Capabilities.Add)
 							}
 							if c.SecurityContext.RunAsUser != nil && *c.SecurityContext.RunAsUser == 0 {
-								fmt.Printf("      [!] Pod %s/%s container %s runs as root\n", pod.Namespace, pod.Name, c.Name)
+								fmt.Printf("     🔴 Pod %s/%s container %s runs as root\n", pod.Namespace, pod.Name, c.Name)
 							}
 						}
 					}
@@ -277,7 +281,7 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool) error {
 					// Check for mounted secrets
 					for _, vol := range pod.Spec.Volumes {
 						if vol.Secret != nil {
-							fmt.Printf("      [!] Pod %s/%s mounts secret: %s\n", pod.Namespace, pod.Name, vol.Secret.SecretName)
+							fmt.Printf("     🔐 Pod %s/%s mounts secret: %s\n", pod.Namespace, pod.Name, vol.Secret.SecretName)
 						}
 					}
 				}
@@ -285,7 +289,66 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool) error {
 				// Check Network Policies
 				np, err := clientset.NetworkingV1().NetworkPolicies(ns.Name).List(ctx, metav1.ListOptions{})
 				if err == nil && len(np.Items) == 0 {
-					fmt.Printf("      [!] Namespace %s has no NetworkPolicies defined\n", ns.Name)
+					fmt.Printf("     🚨 Namespace %s has no NetworkPolicies defined\n", ns.Name)
+				}
+
+				// List services in namespace
+				services, err := clientset.CoreV1().Services(ns.Name).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("     ❌ Failed to list services: %v\n", err)
+				} else if len(services.Items) > 0 {
+					fmt.Printf("     Services: %d\n", len(services.Items))
+					for _, svc := range services.Items {
+						svcType := string(svc.Spec.Type)
+						externalIP := "<none>"
+						if svc.Spec.ExternalIPs != nil && len(svc.Spec.ExternalIPs) > 0 {
+							externalIP = svc.Spec.ExternalIPs[0]
+						} else if svc.Spec.LoadBalancerIP != "" {
+							externalIP = svc.Spec.LoadBalancerIP
+						} else if svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) > 0 {
+							externalIP = svc.Status.LoadBalancer.Ingress[0].IP
+						}
+
+						if externalIP != "<none>" {
+							fmt.Printf("       🔴 Service %s/%s (%s) - EXTERNAL IP: %s\n", svc.Namespace, svc.Name, svcType, externalIP)
+						} else {
+							fmt.Printf("       • Service %s/%s (%s)\n", svc.Namespace, svc.Name, svcType)
+						}
+					}
+				}
+
+				// List secrets in namespace
+				secrets, err := clientset.CoreV1().Secrets(ns.Name).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("     ❌ Failed to list secrets: %v\n", err)
+				} else if len(secrets.Items) > 0 {
+					fmt.Printf("     Secrets: %d\n", len(secrets.Items))
+					for _, secret := range secrets.Items {
+						secretType := string(secret.Type)
+						dataCount := len(secret.Data)
+						fmt.Printf("       🔴 Secret %s/%s (%s) - %d keys\n", secret.Namespace, secret.Name, secretType, dataCount)
+
+						// Check for sensitive secret types
+						if secretType == "kubernetes.io/service-account-token" {
+							fmt.Printf("         ⚠️  ServiceAccount token found!\n")
+						} else if secretType == "kubernetes.io/dockerconfigjson" {
+							fmt.Printf("         ⚠️  Docker registry credentials found!\n")
+						} else if secretType == "kubernetes.io/tls" {
+							fmt.Printf("         ⚠️  TLS certificate found!\n")
+						}
+					}
+				}
+
+				// List configmaps in namespace
+				configmaps, err := clientset.CoreV1().ConfigMaps(ns.Name).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("     ❌ Failed to list configmaps: %v\n", err)
+				} else if len(configmaps.Items) > 0 {
+					fmt.Printf("     ConfigMaps: %d\n", len(configmaps.Items))
+					for _, cm := range configmaps.Items {
+						dataCount := len(cm.Data)
+						fmt.Printf("       • ConfigMap %s/%s - %d keys\n", cm.Namespace, cm.Name, dataCount)
+					}
 				}
 
 				// Additional security checks
@@ -310,34 +373,120 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool) error {
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		fmt.Printf("[!] Failed to check permissions: %v\n", err)
+		fmt.Printf("❌ Failed to check permissions: %v\n", err)
 	} else {
 		if selfSAR.Status.Allowed {
-			fmt.Println("\n[!] WARNING: Current user has cluster-admin privileges!")
+			fmt.Println("\n🔴 WARNING: Current user has cluster-admin privileges!")
 		}
 	}
 
-	// Basic RBAC enumeration
-	rbs, err := clientset.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		fmt.Printf("[!] Failed to list role bindings: %v\n", err)
-	} else {
-		for _, rb := range rbs.Items {
-			for _, s := range rb.Subjects {
-				fmt.Printf("[i] RoleBinding %s binds %s/%s to role %s\n", rb.Name, s.Kind, s.Name, rb.RoleRef.Name)
+	// RBAC enumeration (conditional)
+	if showRBAC {
+		fmt.Printf("\n🔐 RBAC ANALYSIS\n")
+		fmt.Printf(strings.Repeat("─", 30) + "\n")
+
+		// Basic RBAC enumeration
+		rbs, err := clientset.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			fmt.Printf("❌ Failed to list role bindings: %v\n", err)
+		} else {
+			fmt.Printf("RoleBindings (%d found):\n", len(rbs.Items))
+			for _, rb := range rbs.Items {
+				for _, s := range rb.Subjects {
+					fmt.Printf("   • %s binds %s/%s to role %s\n", rb.Name, s.Kind, s.Name, rb.RoleRef.Name)
+				}
+			}
+		}
+
+		crbs, err := clientset.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			fmt.Printf("❌ Failed to list cluster role bindings: %v\n", err)
+		} else {
+			fmt.Printf("\nClusterRoleBindings (%d found):\n", len(crbs.Items))
+			for _, crb := range crbs.Items {
+				for _, s := range crb.Subjects {
+					fmt.Printf("   • %s binds %s/%s to role %s\n", crb.Name, s.Kind, s.Name, crb.RoleRef.Name)
+				}
 			}
 		}
 	}
 
-	crbs, err := clientset.RbacV1().ClusterRoleBindings().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		fmt.Printf("[!] Failed to list cluster role bindings: %v\n", err)
-	} else {
-		for _, crb := range crbs.Items {
-			for _, s := range crb.Subjects {
-				fmt.Printf("[i] ClusterRoleBinding %s binds %s/%s to role %s\n", crb.Name, s.Kind, s.Name, crb.RoleRef.Name)
+	// Enhanced reconnaissance summary
+	if !stealth {
+		fmt.Printf("\n" + strings.Repeat("=", 60) + "\n")
+		fmt.Printf("🎯 ENHANCED RECONNAISSANCE SUMMARY\n")
+		fmt.Printf(strings.Repeat("=", 60) + "\n")
+
+		// Get total counts
+		allPods, _ := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+		allServices, _ := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+		allSecrets, _ := clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{})
+		allConfigMaps, _ := clientset.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{})
+
+		fmt.Printf("📊 CLUSTER OVERVIEW:\n")
+		fmt.Printf("   Nodes: %d\n", len(nodes.Items))
+		fmt.Printf("   Namespaces: %d\n", len(namespaces.Items))
+		fmt.Printf("   Total Pods: %d\n", len(allPods.Items))
+		fmt.Printf("   Total Services: %d\n", len(allServices.Items))
+		fmt.Printf("   Total Secrets: %d\n", len(allSecrets.Items))
+		fmt.Printf("   Total ConfigMaps: %d\n", len(allConfigMaps.Items))
+
+		// Security findings summary
+		fmt.Printf("\n🚨 SECURITY FINDINGS:\n")
+
+		// Count external services
+		externalServices := 0
+		for _, svc := range allServices.Items {
+			if svc.Spec.Type == corev1.ServiceTypeLoadBalancer ||
+				(svc.Spec.ExternalIPs != nil && len(svc.Spec.ExternalIPs) > 0) ||
+				(svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) > 0) {
+				externalServices++
 			}
 		}
+		if externalServices > 0 {
+			fmt.Printf("   🔴 %d externally exposed services\n", externalServices)
+		}
+
+		// Count privileged containers
+		privilegedContainers := 0
+		for _, pod := range allPods.Items {
+			for _, c := range pod.Spec.Containers {
+				if c.SecurityContext != nil && c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
+					privilegedContainers++
+				}
+			}
+		}
+		if privilegedContainers > 0 {
+			fmt.Printf("   🔴 %d privileged containers\n", privilegedContainers)
+		}
+
+		// Count secrets with sensitive types
+		sensitiveSecrets := 0
+		for _, secret := range allSecrets.Items {
+			secretType := string(secret.Type)
+			if secretType == "kubernetes.io/service-account-token" ||
+				secretType == "kubernetes.io/dockerconfigjson" ||
+				secretType == "kubernetes.io/tls" {
+				sensitiveSecrets++
+			}
+		}
+		if sensitiveSecrets > 0 {
+			fmt.Printf("   🔐 %d sensitive secrets (tokens, registry creds, TLS)\n", sensitiveSecrets)
+		}
+
+		// Network policy check
+		namespacesWithoutNP := 0
+		for _, ns := range namespaces.Items {
+			np, _ := clientset.NetworkingV1().NetworkPolicies(ns.Name).List(ctx, metav1.ListOptions{})
+			if len(np.Items) == 0 {
+				namespacesWithoutNP++
+			}
+		}
+		if namespacesWithoutNP > 0 {
+			fmt.Printf("   🚨 %d namespaces without NetworkPolicies\n", namespacesWithoutNP)
+		}
+
+		fmt.Printf(strings.Repeat("=", 60) + "\n")
 	}
 
 	return nil

