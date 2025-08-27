@@ -165,9 +165,8 @@ func checkCloudMetadataAccess(clientset *kubernetes.Clientset, ctx context.Conte
 		// Check for environment variables that might indicate cloud environment
 		for _, container := range pod.Spec.Containers {
 			for _, env := range container.Env {
-				if strings.Contains(strings.ToLower(env.Name), "aws") ||
-					strings.Contains(strings.ToLower(env.Name), "azure") ||
-					strings.Contains(strings.ToLower(env.Name), "gcp") {
+				name := strings.ToLower(env.Name)
+				if strings.Contains(name, "aws") || strings.Contains(name, "azure") || strings.Contains(name, "gcp") || strings.Contains(name, "gke") {
 					fmt.Printf("[!] Pod %s/%s container %s has cloud-related env var: %s\n",
 						ns, pod.Name, container.Name, env.Name)
 				}
@@ -198,6 +197,14 @@ func checkNamespacePivot(clientset *kubernetes.Clientset, ctx context.Context, n
 			fmt.Printf("[!] RoleBinding %s/%s grants elevated permissions (%s)\n", ns, rb.Name, rb.RoleRef.Name)
 		}
 	}
+}
+
+// safeInt32 dereferences *int32 safely
+func safeInt32(p *int32) int32 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // K8sRecon performs Kubernetes API reconnaissance
@@ -306,11 +313,15 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 						} else if svc.Spec.LoadBalancerIP != "" {
 							externalIP = svc.Spec.LoadBalancerIP
 						} else if svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) > 0 {
-							externalIP = svc.Status.LoadBalancer.Ingress[0].IP
+							if svc.Status.LoadBalancer.Ingress[0].IP != "" {
+								externalIP = svc.Status.LoadBalancer.Ingress[0].IP
+							} else if svc.Status.LoadBalancer.Ingress[0].Hostname != "" {
+								externalIP = svc.Status.LoadBalancer.Ingress[0].Hostname
+							}
 						}
 
 						if externalIP != "<none>" {
-							fmt.Printf("       🔴 Service %s/%s (%s) - EXTERNAL IP: %s\n", svc.Namespace, svc.Name, svcType, externalIP)
+							fmt.Printf("       🔴 Service %s/%s (%s) - EXTERNAL: %s\n", svc.Namespace, svc.Name, svcType, externalIP)
 						} else {
 							fmt.Printf("       • Service %s/%s (%s)\n", svc.Namespace, svc.Name, svcType)
 						}
@@ -329,11 +340,12 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 						fmt.Printf("       🔴 Secret %s/%s (%s) - %d keys\n", secret.Namespace, secret.Name, secretType, dataCount)
 
 						// Check for sensitive secret types
-						if secretType == "kubernetes.io/service-account-token" {
+						switch secretType {
+						case "kubernetes.io/service-account-token":
 							fmt.Printf("         ⚠️  ServiceAccount token found!\n")
-						} else if secretType == "kubernetes.io/dockerconfigjson" {
+						case "kubernetes.io/dockerconfigjson":
 							fmt.Printf("         ⚠️  Docker registry credentials found!\n")
-						} else if secretType == "kubernetes.io/tls" {
+						case "kubernetes.io/tls":
 							fmt.Printf("         ⚠️  TLS certificate found!\n")
 						}
 					}
@@ -351,6 +363,52 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 					}
 				}
 
+				// ➕ List deployments in namespace
+				deployments, err := clientset.AppsV1().Deployments(ns.Name).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("     ❌ Failed to list deployments: %v\n", err)
+				} else if len(deployments.Items) > 0 {
+					fmt.Printf("     Deployments: %d\n", len(deployments.Items))
+					for _, dep := range deployments.Items {
+						replicas := safeInt32(dep.Spec.Replicas)
+						ready := int32(0)
+						if dep.Status.ReadyReplicas > 0 {
+							ready = dep.Status.ReadyReplicas
+						}
+						fmt.Printf("       • %s (replicas: %d, ready: %d)\n", dep.Name, replicas, ready)
+					}
+				}
+
+				// ➕ List jobs in namespace
+				jobs, err := clientset.BatchV1().Jobs(ns.Name).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("     ❌ Failed to list jobs: %v\n", err)
+				} else if len(jobs.Items) > 0 {
+					fmt.Printf("     Jobs: %d\n", len(jobs.Items))
+					for _, job := range jobs.Items {
+						fmt.Printf("       • %s (completions: %d, parallelism: %d, succeeded: %d, failed: %d, active: %d)\n",
+							job.Name,
+							safeInt32(job.Spec.Completions),
+							safeInt32(job.Spec.Parallelism),
+							job.Status.Succeeded,
+							job.Status.Failed,
+							job.Status.Active,
+						)
+					}
+				}
+
+				// ➕ List service accounts in namespace
+				sas, err := clientset.CoreV1().ServiceAccounts(ns.Name).List(ctx, metav1.ListOptions{})
+				if err != nil {
+					fmt.Printf("     ❌ Failed to list service accounts: %v\n", err)
+				} else if len(sas.Items) > 0 {
+					fmt.Printf("     ServiceAccounts: %d\n", len(sas.Items))
+					for _, sa := range sas.Items {
+						tokenCount := len(sa.Secrets)
+						fmt.Printf("       • %s (tokens: %d)\n", sa.Name, tokenCount)
+					}
+				}
+
 				// Additional security checks
 				checkCloudMetadataAccess(clientset, ctx, ns.Name)
 				checkNamespacePivot(clientset, ctx, ns.Name)
@@ -361,6 +419,31 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 	// Add CoreDNS check
 	if !stealth {
 		checkCoreDNSConfig(clientset, ctx)
+	}
+
+	// ➕ Cluster-scoped PersistentVolumes
+	fmt.Printf("\n💾 PERSISTENT VOLUMES\n")
+	fmt.Printf(strings.Repeat("─", 30) + "\n")
+	pvs, err := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		fmt.Printf("❌ Failed to list persistent volumes: %v\n", err)
+	} else if len(pvs.Items) == 0 {
+		fmt.Printf("No PersistentVolumes found\n")
+	} else {
+		fmt.Printf("✅ Found %d PersistentVolumes\n", len(pvs.Items))
+		for _, pv := range pvs.Items {
+			storageQty, ok := pv.Spec.Capacity[corev1.ResourceStorage]
+			storage := "<unknown>"
+			if ok {
+				storage = storageQty.String()
+			}
+			claim := "<unbound>"
+			if pv.Spec.ClaimRef != nil {
+				claim = fmt.Sprintf("%s/%s", pv.Spec.ClaimRef.Namespace, pv.Spec.ClaimRef.Name)
+			}
+			fmt.Printf("   • %s (Phase: %s, Capacity: %s, AccessModes: %v, ReclaimPolicy: %s, Claim: %s)\n",
+				pv.Name, pv.Status.Phase, storage, pv.Spec.AccessModes, pv.Spec.PersistentVolumeReclaimPolicy, claim)
+		}
 	}
 
 	// Check RBAC permissions
@@ -393,7 +476,7 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 			fmt.Printf("RoleBindings (%d found):\n", len(rbs.Items))
 			for _, rb := range rbs.Items {
 				for _, s := range rb.Subjects {
-					fmt.Printf("   • %s binds %s/%s to role %s\n", rb.Name, s.Kind, s.Name, rb.RoleRef.Name)
+					fmt.Printf("   • %s binds %s/%s to role %s (ns: %s)\n", rb.Name, s.Kind, s.Name, rb.RoleRef.Name, rb.Namespace)
 				}
 			}
 		}
@@ -422,14 +505,22 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 		allServices, _ := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
 		allSecrets, _ := clientset.CoreV1().Secrets("").List(ctx, metav1.ListOptions{})
 		allConfigMaps, _ := clientset.CoreV1().ConfigMaps("").List(ctx, metav1.ListOptions{})
+		allDeployments, _ := clientset.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
+		allJobs, _ := clientset.BatchV1().Jobs("").List(ctx, metav1.ListOptions{})
+		allSAs, _ := clientset.CoreV1().ServiceAccounts("").List(ctx, metav1.ListOptions{})
+		allPVs, _ := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
 
 		fmt.Printf("📊 CLUSTER OVERVIEW:\n")
 		fmt.Printf("   Nodes: %d\n", len(nodes.Items))
 		fmt.Printf("   Namespaces: %d\n", len(namespaces.Items))
 		fmt.Printf("   Total Pods: %d\n", len(allPods.Items))
 		fmt.Printf("   Total Services: %d\n", len(allServices.Items))
+		fmt.Printf("   Total Deployments: %d\n", len(allDeployments.Items))
+		fmt.Printf("   Total Jobs: %d\n", len(allJobs.Items))
+		fmt.Printf("   Total ServiceAccounts: %d\n", len(allSAs.Items))
 		fmt.Printf("   Total Secrets: %d\n", len(allSecrets.Items))
 		fmt.Printf("   Total ConfigMaps: %d\n", len(allConfigMaps.Items))
+		fmt.Printf("   Total PersistentVolumes: %d\n", len(allPVs.Items))
 
 		// Security findings summary
 		fmt.Printf("\n🚨 SECURITY FINDINGS:\n")
