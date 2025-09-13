@@ -1016,6 +1016,21 @@ func getUDPConnections() ([]Connection, error) {
 	return connections, nil
 }
 
+// Helper functions for safe field access
+func getFieldSafe(fields []string, index int) string {
+	if index < len(fields) {
+		return fields[index]
+	}
+	return ""
+}
+
+func getFieldsSafe(fields []string, startIndex int) []string {
+	if startIndex < len(fields) {
+		return fields[startIndex:]
+	}
+	return []string{}
+}
+
 func getFirewallRules() ([]FirewallRule, error) {
 	var rules []FirewallRule
 
@@ -1049,17 +1064,17 @@ func getFirewallRules() ([]FirewallRule, error) {
 			continue
 		}
 
-		// Parse rule
+		// Parse rule with safe field access
 		rule := FirewallRule{
 			Chain:       currentChain,
 			Target:      fields[0],
-			Protocol:    fields[3],
-			Source:      fields[7],
-			Destination: fields[8],
-			Sport:       fields[9],
-			Dport:       fields[10],
-			Interface:   fields[5],
-			Options:     fields[11:],
+			Protocol:    getFieldSafe(fields, 3),
+			Source:      getFieldSafe(fields, 7),
+			Destination: getFieldSafe(fields, 8),
+			Sport:       getFieldSafe(fields, 9),
+			Dport:       getFieldSafe(fields, 10),
+			Interface:   getFieldSafe(fields, 5),
+			Options:     getFieldsSafe(fields, 11),
 		}
 
 		// Extract comment if present
