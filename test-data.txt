@@ -1,9 +1,0 @@
-Sample data for testing KubeShadow data exfiltration
-This file contains some test information that can be uploaded to cloud storage.
-
-System Information:
-- OS: Windows
-- Tool: KubeShadow
-- Test Date: 2025-10-02
-
-This is a demo file to test the data exfiltration functionality.
