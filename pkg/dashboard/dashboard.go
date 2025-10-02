@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -55,13 +56,16 @@ func (d *Dashboard) Start(port int) error {
 	}
 
 	mux := http.NewServeMux()
-	
+
 	// Serve static files
 	mux.HandleFunc("/", d.handleHome)
 	mux.HandleFunc("/api/results", d.handleResults)
 	mux.HandleFunc("/api/stats", d.handleStats)
+	mux.HandleFunc("/api/export/csv", d.handleCSVExport)
+	mux.HandleFunc("/api/export/pdf", d.handlePDFExport)
+	mux.HandleFunc("/logo.png", d.handleLogo)
 	mux.HandleFunc("/ws", d.handleWebSocket)
-	
+
 	d.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
@@ -69,7 +73,7 @@ func (d *Dashboard) Start(port int) error {
 
 	d.enabled = true
 	log.Printf("🎯 Dashboard starting on http://localhost:%d", port)
-	
+
 	go func() {
 		if err := d.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("Dashboard server error: %v", err)
@@ -117,7 +121,7 @@ func (d *Dashboard) PublishResult(result CommandResult) {
 			break
 		}
 	}
-	
+
 	if !found {
 		d.results = append(d.results, result)
 	}
@@ -136,7 +140,7 @@ func (d *Dashboard) PublishResult(result CommandResult) {
 func (d *Dashboard) GetResults() []CommandResult {
 	d.mutex.RLock()
 	defer d.mutex.RUnlock()
-	
+
 	results := make([]CommandResult, len(d.results))
 	copy(results, d.results)
 	return results
@@ -237,6 +241,19 @@ func (d *Dashboard) handleHome(w http.ResponseWriter, r *http.Request) {
             text-align: center;
             color: white;
             margin-bottom: 30px;
+        }
+        
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .logo:hover {
+            transform: scale(1.05);
         }
         
         .header h1 {
@@ -371,25 +388,58 @@ func (d *Dashboard) handleHome(w http.ResponseWriter, r *http.Request) {
             color: #666;
         }
         
-        .refresh-btn {
-            background: #667eea;
-            color: white;
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .export-btn, .refresh-btn {
             border: none;
             padding: 8px 16px;
             border-radius: 5px;
             cursor: pointer;
-            transition: background 0.3s ease;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
         }
         
         .refresh-btn:hover {
             background: #5a6fd8;
+            transform: translateY(-1px);
+        }
+        
+        .csv-btn {
+            background: #28a745;
+            color: white;
+        }
+        
+        .csv-btn:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+        
+        .pdf-btn {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .pdf-btn:hover {
+            background: #c82333;
+            transform: translateY(-1px);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 KubeShadow Dashboard</h1>
+            <img src="/logo.png" alt="KubeShadow Logo" class="logo">
+            <h1>KubeShadow Dashboard</h1>
             <p>Real-time monitoring of security testing operations</p>
         </div>
         
@@ -417,10 +467,14 @@ func (d *Dashboard) handleHome(w http.ResponseWriter, r *http.Request) {
         </div>
         
         <div class="results-section">
-            <div class="results-header">
-                <h2>Command Results</h2>
-                <button class="refresh-btn" onclick="refreshData()">Refresh</button>
+        <div class="results-header">
+            <h2>Command Results</h2>
+            <div class="header-buttons">
+                <button class="export-btn csv-btn" onclick="downloadCSV()">📊 Export CSV</button>
+                <button class="export-btn pdf-btn" onclick="downloadPDF()">📄 Export PDF</button>
+                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
             </div>
+        </div>
             <div id="results-container">
                 <div class="no-results">
                     No command results yet. Run a KubeShadow command with the --dashboard flag to see results here.
@@ -503,6 +557,60 @@ func (d *Dashboard) handleHome(w http.ResponseWriter, r *http.Request) {
             });
         }
         
+        function downloadCSV() {
+            fetch('/api/export/csv')
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to export CSV');
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = ` + "`" + `kubeshadow-results-${new Date().toISOString().split('T')[0]}.csv` + "`" + `;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                })
+                .catch(err => {
+                    console.error('Error downloading CSV:', err);
+                    alert('Failed to download CSV file');
+                });
+        }
+        
+        function downloadPDF() {
+            // Show loading indicator
+            const pdfBtn = document.querySelector('.pdf-btn');
+            const originalText = pdfBtn.textContent;
+            pdfBtn.textContent = '📄 Generating...';
+            pdfBtn.disabled = true;
+            
+            fetch('/api/export/pdf')
+                .then(response => {
+                    if (!response.ok) throw new Error('Failed to export PDF');
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = ` + "`" + `kubeshadow-dashboard-${new Date().toISOString().split('T')[0]}.pdf` + "`" + `;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                })
+                .catch(err => {
+                    console.error('Error downloading PDF:', err);
+                    alert('Failed to download PDF file');
+                })
+                .finally(() => {
+                    pdfBtn.textContent = originalText;
+                    pdfBtn.disabled = false;
+                });
+        }
+        
         function renderResults(results) {
             const container = document.getElementById('results-container');
             
@@ -554,7 +662,7 @@ func (d *Dashboard) handleHome(w http.ResponseWriter, r *http.Request) {
     </script>
 </body>
 </html>`
-	
+
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
 }
@@ -601,5 +709,53 @@ func (d *Dashboard) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			break
 		}
+	}
+}
+
+func (d *Dashboard) handleCSVExport(w http.ResponseWriter, r *http.Request) {
+	results := d.GetResults()
+	stats := d.GetStats()
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=kubeshadow-results.csv")
+
+	csv := generateCSV(results, stats)
+	if _, err := w.Write([]byte(csv)); err != nil {
+		log.Printf("Error writing CSV export: %v", err)
+		http.Error(w, "Failed to export CSV", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (d *Dashboard) handlePDFExport(w http.ResponseWriter, r *http.Request) {
+	results := d.GetResults()
+	stats := d.GetStats()
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", "attachment; filename=kubeshadow-dashboard.pdf")
+
+	pdf := generatePDF(results, stats)
+	if _, err := w.Write(pdf); err != nil {
+		log.Printf("Error writing PDF export: %v", err)
+		http.Error(w, "Failed to export PDF", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (d *Dashboard) handleLogo(w http.ResponseWriter, r *http.Request) {
+	// Serve the logo.png file
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=86400") // Cache for 24 hours
+
+	// Read the logo file from the current directory
+	logoData, err := os.ReadFile("logo.png")
+	if err != nil {
+		log.Printf("Error reading logo file: %v", err)
+		http.NotFound(w, r)
+		return
+	}
+
+	if _, err := w.Write(logoData); err != nil {
+		log.Printf("Error writing logo data: %v", err)
 	}
 }
