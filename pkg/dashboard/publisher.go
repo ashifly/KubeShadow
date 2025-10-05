@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -104,8 +105,8 @@ func (p *Publisher) GetID() string {
 
 // CaptureWriter creates a writer that captures output for the dashboard
 type CaptureWriter struct {
-	original io.Writer
-	buffer   *bytes.Buffer
+	original  io.Writer
+	buffer    *bytes.Buffer
 	publisher *Publisher
 }
 
@@ -150,7 +151,7 @@ func WrapStdout(publisher *Publisher) (*CaptureWriter, func()) {
 
 	originalStdout := os.Stdout
 	captureWriter := NewCaptureWriter(originalStdout, publisher)
-	
+
 	// Create a pipe to capture stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
@@ -193,5 +194,24 @@ func StartDashboardIfRequested(dashboardFlag bool, port int) error {
 		return nil
 	}
 
+	// Check if a KubeShadow dashboard is already running on this port
+	if isDashboardRunningOnPort(port) {
+		fmt.Printf("📊 Using existing dashboard on http://localhost:%d\n", port)
+		return nil
+	}
+
 	return dashboard.Start(port)
+}
+
+// isDashboardRunningOnPort checks if a KubeShadow dashboard is already running on the specified port
+func isDashboardRunningOnPort(port int) bool {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://localhost:%d/api/stats", port))
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// If we get a successful response, assume it's our dashboard
+	return resp.StatusCode == http.StatusOK
 }

@@ -73,6 +73,7 @@ func (d *Dashboard) Start(port int) error {
 	mux.HandleFunc("/", d.handleHome)
 	mux.HandleFunc("/api/results", d.handleResults)
 	mux.HandleFunc("/api/stats", d.handleStats)
+	mux.HandleFunc("/api/publish", d.handlePublish)
 	mux.HandleFunc("/api/export/csv", d.handleCSVExport)
 	mux.HandleFunc("/api/export/pdf", d.handlePDFExport)
 	mux.HandleFunc("/logo.png", d.handleLogo)
@@ -755,6 +756,24 @@ func (d *Dashboard) handlePDFExport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to export PDF", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (d *Dashboard) handlePublish(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var result CommandResult
+	if err := json.NewDecoder(r.Body).Decode(&result); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	d.PublishResult(result)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
 func (d *Dashboard) handleLogo(w http.ResponseWriter, r *http.Request) {

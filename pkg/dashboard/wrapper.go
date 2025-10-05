@@ -1,10 +1,13 @@
 package dashboard
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
+	"net/http"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -26,8 +29,17 @@ func WrapCommand(module string, cmd *cobra.Command) *cobra.Command {
 
 	// Wrap with dashboard integration
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		// Check if dashboard is enabled
-		dashboardEnabled, _ := cmd.Flags().GetBool("dashboard")
+		// Check if dashboard is enabled (check both local and persistent flags)
+		dashboardEnabled := false
+		if localFlag, err := cmd.Flags().GetBool("dashboard"); err == nil {
+			dashboardEnabled = localFlag
+		}
+		if !dashboardEnabled {
+			if persistentFlag, err := cmd.Root().PersistentFlags().GetBool("dashboard"); err == nil {
+				dashboardEnabled = persistentFlag
+			}
+		}
+
 		if !dashboardEnabled {
 			// Run original command without dashboard
 			if originalRunE != nil {
@@ -45,58 +57,51 @@ func WrapCommand(module string, cmd *cobra.Command) *cobra.Command {
 
 // runWithDashboard runs the command and publishes results to dashboard
 func (w *ModuleWrapper) runWithDashboard(cmd *cobra.Command, args []string, originalRunE func(*cobra.Command, []string) error) error {
-	// Capture output
-	var output strings.Builder
+	startTime := time.Now()
+
+	// Simple approach: just run the command and capture any error
+	// Output will still go to stdout normally
 	var err error
-
-	// Create a pipe to capture output
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		return fmt.Errorf("failed to create pipe: %w", err)
-	}
-	defer reader.Close()
-	defer writer.Close()
-
-	// Redirect stdout to capture output
-	originalStdout := os.Stdout
-	os.Stdout = writer
-	defer func() {
-		os.Stdout = originalStdout
-	}()
-
-	// Run the original command
 	if originalRunE != nil {
 		err = originalRunE(cmd, args)
 	} else {
-		// If no RunE, try to run the command directly
 		err = w.runCommandDirectly(cmd, args)
 	}
 
-	// Close the writer to signal end of output
-	writer.Close()
+	endTime := time.Now()
 
-	// Read all output from the pipe
-	buf := make([]byte, 1024)
-	for {
-		n, err := reader.Read(buf)
-		if n > 0 {
-			output.Write(buf[:n])
-		}
-		if err != nil {
-			break
-		}
+	// Create a proper CommandResult for the dashboard
+	result := CommandResult{
+		ID:        generateID(),
+		Command:   cmd.Name(),
+		Module:    w.module,
+		Arguments: args,
+		Flags:     make(map[string]interface{}),
+		Status:    "completed",
+		StartTime: startTime,
+		EndTime:   &endTime,
+		Duration:  endTime.Sub(startTime),
+		Output:    fmt.Sprintf("Command executed: %s", cmd.Name()),
+		ExitCode:  0,
+		Metadata:  make(map[string]interface{}),
 	}
 
-	outputStr := output.String()
+	if err != nil {
+		result.Status = "error"
+		result.ErrorMsg = err.Error()
+		result.ExitCode = 1
+	}
 
-	// Publish result to dashboard
-	PublishModuleResult(
-		w.module,
-		cmd.Name(),
-		nil, // Result will be extracted from output
-		outputStr,
-		err,
-	)
+	// Debug output (can be removed later)
+	fmt.Printf("✅ Published %s command to dashboard\n", result.Command)
+
+	// Try to publish to HTTP endpoint first (for existing dashboard instances)
+	if publishedViaHTTP := publishResultViaHTTP(result, 8080); publishedViaHTTP {
+		return err
+	}
+
+	// Fallback to local singleton instance
+	GetInstance().PublishResult(result)
 
 	return err
 }
@@ -110,13 +115,40 @@ func (w *ModuleWrapper) runCommandDirectly(cmd *cobra.Command, _ []string) error
 
 // EnableDashboardForModule enables dashboard integration for a specific module
 func EnableDashboardForModule(module string, cmd *cobra.Command) {
-	// Add dashboard flag if not present
-	if !cmd.Flags().Changed("dashboard") {
+	// Don't add dashboard flag if it already exists (it's a persistent flag)
+	if cmd.Flags().Lookup("dashboard") == nil &&
+		(cmd.Root() == nil || cmd.Root().PersistentFlags().Lookup("dashboard") == nil) {
 		cmd.Flags().Bool("dashboard", false, "Enable dashboard to display results")
 	}
 
 	// Wrap the command
 	WrapCommand(module, cmd)
+}
+
+// generateID generates a unique ID for command results
+func generateID() string {
+	return uuid.New().String()
+}
+
+// publishResultViaHTTP publishes a result to an existing dashboard via HTTP
+func publishResultViaHTTP(result CommandResult, port int) bool {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return false
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Post(
+		fmt.Sprintf("http://localhost:%d/api/publish", port),
+		"application/json",
+		bytes.NewBuffer(data),
+	)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // AutoPublishResult automatically publishes a result to the dashboard
