@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	k02_supply_chain "kubeshadow/modules/owasp_top10/k02_supply_chain"
+	k03_rbac "kubeshadow/modules/owasp_top10/k03_rbac"
+	k04_policy "kubeshadow/modules/owasp_top10/k04_policy"
 	"kubeshadow/pkg/logger"
 
 	"github.com/spf13/cobra"
@@ -92,14 +94,15 @@ func showAvailableModules() error {
 	}{
 		{"K01", "Insecure Workload Configurations", "Detects dangerous security contexts and privileged containers", "✅ Implemented"},
 		{"K02", "Supply Chain Vulnerabilities", "Detects risky images, mutable registries, and CI pipeline issues", "✅ Implemented"},
-		{"K03", "Sensitive Data Exposure", "Secret management and data encryption issues", "🔄 Planned"},
-		{"K04", "XML External Entities (XXE)", "XML processing vulnerabilities and external entity attacks", "🔄 Planned"},
-		{"K05", "Broken Access Control", "Privilege escalation and resource access violations", "🔄 Planned"},
-		{"K06", "Security Misconfiguration", "Cluster configuration and component security gaps", "🔄 Planned"},
-		{"K07", "Cross-Site Scripting (XSS)", "Web application vulnerabilities and script injection", "🔄 Planned"},
-		{"K08", "Insecure Deserialization", "Object deserialization and code execution risks", "🔄 Planned"},
-		{"K09", "Known Vulnerabilities", "Container image and dependency security issues", "🔄 Planned"},
-		{"K10", "Insufficient Logging & Monitoring", "Audit log gaps and security event detection", "🔄 Planned"},
+		{"K03", "Overly Permissive RBAC Configurations", "Builds RBAC graphs and finds escalation chains", "✅ Implemented"},
+		{"K04", "Lack of Centralized Policy Enforcement", "Detects missing Gatekeeper/OPA/Kyverno and policy gaps", "✅ Implemented"},
+		{"K05", "XML External Entities (XXE)", "XML processing vulnerabilities and external entity attacks", "🔄 Planned"},
+		{"K06", "Broken Access Control", "Privilege escalation and resource access violations", "🔄 Planned"},
+		{"K07", "Security Misconfiguration", "Cluster configuration and component security gaps", "🔄 Planned"},
+		{"K08", "Cross-Site Scripting (XSS)", "Web application vulnerabilities and script injection", "🔄 Planned"},
+		{"K09", "Insecure Deserialization", "Object deserialization and code execution risks", "🔄 Planned"},
+		{"K10", "Known Vulnerabilities", "Container image and dependency security issues", "🔄 Planned"},
+		{"K11", "Insufficient Logging & Monitoring", "Audit log gaps and security event detection", "🔄 Planned"},
 	}
 
 	for _, module := range modules {
@@ -143,21 +146,35 @@ func runSpecificModules(moduleList string) error {
 				logger.Info("✅ K02 completed")
 			}
 		case "K03":
-			logger.Info("🔍 K03 - Sensitive Data Exposure (not yet implemented)")
+			logger.Info("🔍 Running K03 - Overly Permissive RBAC Configurations...")
+			// Run K03 module
+			if err := k03_rbac.RBACCmd.Execute(); err != nil {
+				logger.Warn("K03 failed: %v", err)
+			} else {
+				logger.Info("✅ K03 completed")
+			}
 		case "K04":
-			logger.Info("🔍 K04 - XML External Entities (not yet implemented)")
+			logger.Info("🔍 Running K04 - Lack of Centralized Policy Enforcement...")
+			// Run K04 module
+			if err := k04_policy.PolicyCmd.Execute(); err != nil {
+				logger.Warn("K04 failed: %v", err)
+			} else {
+				logger.Info("✅ K04 completed")
+			}
 		case "K05":
-			logger.Info("🔍 K05 - Broken Access Control (not yet implemented)")
+			logger.Info("🔍 K05 - XML External Entities (not yet implemented)")
 		case "K06":
-			logger.Info("🔍 K06 - Security Misconfiguration (not yet implemented)")
+			logger.Info("🔍 K06 - Broken Access Control (not yet implemented)")
 		case "K07":
-			logger.Info("🔍 K07 - Cross-Site Scripting (not yet implemented)")
+			logger.Info("🔍 K07 - Security Misconfiguration (not yet implemented)")
 		case "K08":
-			logger.Info("🔍 K08 - Insecure Deserialization (not yet implemented)")
+			logger.Info("🔍 K08 - Cross-Site Scripting (not yet implemented)")
 		case "K09":
-			logger.Info("🔍 K09 - Known Vulnerabilities (not yet implemented)")
+			logger.Info("🔍 K09 - Insecure Deserialization (not yet implemented)")
 		case "K10":
-			logger.Info("🔍 K10 - Insufficient Logging & Monitoring (not yet implemented)")
+			logger.Info("🔍 K10 - Known Vulnerabilities (not yet implemented)")
+		case "K11":
+			logger.Info("🔍 K11 - Insufficient Logging & Monitoring (not yet implemented)")
 		default:
 			logger.Warn("⚠️  Unknown module: %s", code)
 		}
@@ -171,8 +188,8 @@ func runAllModules() error {
 	logger.Info("🔍 Running all implemented OWASP Top 10 modules...")
 	logger.Info("")
 
-	// Currently K01 and K02 are implemented
-	implementedModules := []string{"K01", "K02"}
+	// Currently K01, K02, K03, and K04 are implemented
+	implementedModules := []string{"K01", "K02", "K03", "K04"}
 
 	for _, module := range implementedModules {
 		logger.Info("🔍 Running %s...", module)
@@ -218,6 +235,12 @@ func init() {
 
 	// K02 command
 	OwaspCmd.AddCommand(k02_supply_chain.SupplyChainCmd)
+
+	// K03 command
+	OwaspCmd.AddCommand(k03_rbac.RBACCmd)
+
+	// K04 command
+	OwaspCmd.AddCommand(k04_policy.PolicyCmd)
 
 	// List command
 	OwaspCmd.AddCommand(&cobra.Command{

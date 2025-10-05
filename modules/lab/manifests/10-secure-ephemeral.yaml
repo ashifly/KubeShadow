@@ -5,6 +5,9 @@ metadata:
   labels:
     name: secure-ephemeral-lab
     security-level: secure
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
 ---
 # SECURE: Minimal service account for debugging
 apiVersion: v1
@@ -192,8 +195,6 @@ spec:
       port: 5432
 ---
 # SECURE: Pod Security Policy (if supported)
-apiVersion: policy/v1beta1
-kind: PodSecurityPolicy
 metadata:
   name: secure-ephemeral-psp
 spec:

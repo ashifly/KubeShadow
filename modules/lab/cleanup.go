@@ -6,8 +6,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"kubeshadow/pkg/dashboard"
-
 	"github.com/spf13/cobra"
 )
 
@@ -17,54 +15,50 @@ var LabCleanupCmd = &cobra.Command{
 	Long: `Remove all KubeShadow lab resources from the current cluster.
 This will delete all namespaces, pods, services, and other resources created by the lab.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Create dashboard wrapper
-		wrapper := dashboard.NewCommandWrapper(cmd, "lab-cleanup", "lab cleanup", args)
+		// Execute lab cleanup
+		confirm, err := cmd.Flags().GetBool("confirm")
+		if err != nil {
+			return fmt.Errorf("failed to get confirm flag: %w", err)
+		}
 
-		return wrapper.Execute(func() error {
-			confirm, err := cmd.Flags().GetBool("confirm")
-			if err != nil {
-				return fmt.Errorf("failed to get confirm flag: %w", err)
+		provider, err := cmd.Flags().GetString("provider")
+		if err != nil {
+			return fmt.Errorf("failed to get provider flag: %w", err)
+		}
+
+		clusterName, err := cmd.Flags().GetString("cluster-name")
+		if err != nil {
+			return fmt.Errorf("failed to get cluster-name flag: %w", err)
+		}
+
+		fmt.Println("🧹 KubeShadow Lab Cleanup")
+		fmt.Println("=========================")
+
+		if !confirm {
+			fmt.Print("⚠️  This will delete ALL lab resources. Continue? (y/N): ")
+			var response string
+			fmt.Scanln(&response)
+			if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+				fmt.Println("❌ Cleanup cancelled.")
+				return nil
 			}
+		}
 
-			provider, err := cmd.Flags().GetString("provider")
-			if err != nil {
-				return fmt.Errorf("failed to get provider flag: %w", err)
+		// Clean up lab manifests
+		if err := cleanupLabManifests(); err != nil {
+			return fmt.Errorf("failed to cleanup lab manifests: %w", err)
+		}
+
+		// Clean up cluster if requested
+		if contains([]string{"aws", "gcp", "azure", "minikube", "kind"}, provider) {
+			fmt.Printf("🗑️  Removing %s cluster: %s\n", provider, clusterName)
+			if err := cleanupCluster(provider, clusterName); err != nil {
+				fmt.Printf("⚠️  Warning: Failed to cleanup cluster: %v\n", err)
 			}
+		}
 
-			clusterName, err := cmd.Flags().GetString("cluster-name")
-			if err != nil {
-				return fmt.Errorf("failed to get cluster-name flag: %w", err)
-			}
-
-			fmt.Println("🧹 KubeShadow Lab Cleanup")
-			fmt.Println("=========================")
-
-			if !confirm {
-				fmt.Print("⚠️  This will delete ALL lab resources. Continue? (y/N): ")
-				var response string
-				fmt.Scanln(&response)
-				if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
-					fmt.Println("❌ Cleanup cancelled.")
-					return nil
-				}
-			}
-
-			// Clean up lab manifests
-			if err := cleanupLabManifests(); err != nil {
-				return fmt.Errorf("failed to cleanup lab manifests: %w", err)
-			}
-
-			// Clean up cluster if requested
-			if contains([]string{"aws", "gcp", "azure", "minikube", "kind"}, provider) {
-				fmt.Printf("🗑️  Removing %s cluster: %s\n", provider, clusterName)
-				if err := cleanupCluster(provider, clusterName); err != nil {
-					fmt.Printf("⚠️  Warning: Failed to cleanup cluster: %v\n", err)
-				}
-			}
-
-			fmt.Println("✅ Lab cleanup complete!")
-			return nil
-		})
+		fmt.Println("✅ Lab cleanup complete!")
+		return nil
 	},
 }
 

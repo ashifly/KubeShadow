@@ -5,6 +5,9 @@ metadata:
   labels:
     name: secure-chroot-lab
     security-level: secure
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
 ---
 # SECURE: Minimal service account
 apiVersion: v1
@@ -93,8 +96,6 @@ spec:
   restartPolicy: Always
 ---
 # SECURE: Pod Security Policy
-apiVersion: policy/v1beta1
-kind: PodSecurityPolicy
 metadata:
   name: secure-chroot-psp
 spec:

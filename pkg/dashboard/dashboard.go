@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -55,6 +56,17 @@ func (d *Dashboard) Start(port int) error {
 		return fmt.Errorf("dashboard is already running")
 	}
 
+	// Check if port is available, find alternative if needed
+	if !d.isPortAvailable(port) {
+		log.Printf("⚠️  Port %d is already in use, searching for alternative...", port)
+		availablePort := d.findAvailablePort(port)
+		if availablePort == 0 {
+			return fmt.Errorf("no available ports found starting from %d", port)
+		}
+		log.Printf("✅ Found available port: %d", availablePort)
+		port = availablePort
+	}
+
 	mux := http.NewServeMux()
 
 	// Serve static files
@@ -73,10 +85,13 @@ func (d *Dashboard) Start(port int) error {
 
 	d.enabled = true
 	log.Printf("🎯 Dashboard starting on http://localhost:%d", port)
+	log.Printf("🌐 Also accessible at: http://127.0.0.1:%d", port)
 
 	go func() {
 		if err := d.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Dashboard server error: %v", err)
+			log.Printf("❌ Dashboard server error: %v", err)
+			log.Printf("💡 Try using a different port: --dashboard-port 8081")
+			log.Printf("💡 Port %d may be in use by another process", port)
 		}
 	}()
 
@@ -758,4 +773,24 @@ func (d *Dashboard) handleLogo(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(logoData); err != nil {
 		log.Printf("Error writing logo data: %v", err)
 	}
+}
+
+// isPortAvailable checks if a port is available for binding
+func (d *Dashboard) isPortAvailable(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+// findAvailablePort finds an available port starting from the given port
+func (d *Dashboard) findAvailablePort(startPort int) int {
+	for port := startPort; port < startPort+100; port++ {
+		if d.isPortAvailable(port) {
+			return port
+		}
+	}
+	return 0 // No available port found
 }

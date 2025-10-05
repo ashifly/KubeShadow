@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kubeshadow/pkg/dashboard"
-
 	"github.com/spf13/cobra"
 )
 
@@ -38,74 +36,70 @@ Examples:
   kubeshadow lab --provider aws --cluster-size minimal --use-spot
   kubeshadow lab --provider gcp --cluster-size small --use-spot`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Create dashboard wrapper
-		wrapper := dashboard.NewCommandWrapper(cmd, "lab", "lab", args)
+		// Execute lab creation
+		provider, err := cmd.Flags().GetString("provider")
+		if err != nil {
+			return fmt.Errorf("failed to get provider flag: %w", err)
+		}
 
-		return wrapper.Execute(func() error {
-			provider, err := cmd.Flags().GetString("provider")
-			if err != nil {
-				return fmt.Errorf("failed to get provider flag: %w", err)
-			}
+		region, err := cmd.Flags().GetString("region")
+		if err != nil {
+			return fmt.Errorf("failed to get region flag: %w", err)
+		}
 
-			region, err := cmd.Flags().GetString("region")
-			if err != nil {
-				return fmt.Errorf("failed to get region flag: %w", err)
-			}
+		clusterName, err := cmd.Flags().GetString("cluster-name")
+		if err != nil {
+			return fmt.Errorf("failed to get cluster-name flag: %w", err)
+		}
 
-			clusterName, err := cmd.Flags().GetString("cluster-name")
-			if err != nil {
-				return fmt.Errorf("failed to get cluster-name flag: %w", err)
-			}
+		skipAuth, err := cmd.Flags().GetBool("skip-auth")
+		if err != nil {
+			return fmt.Errorf("failed to get skip-auth flag: %w", err)
+		}
 
-			skipAuth, err := cmd.Flags().GetBool("skip-auth")
-			if err != nil {
-				return fmt.Errorf("failed to get skip-auth flag: %w", err)
-			}
+		clusterSize, err := cmd.Flags().GetString("cluster-size")
+		if err != nil {
+			return fmt.Errorf("failed to get cluster-size flag: %w", err)
+		}
 
-			clusterSize, err := cmd.Flags().GetString("cluster-size")
-			if err != nil {
-				return fmt.Errorf("failed to get cluster-size flag: %w", err)
-			}
+		useSpot, err := cmd.Flags().GetBool("use-spot")
+		if err != nil {
+			return fmt.Errorf("failed to get use-spot flag: %w", err)
+		}
 
-			useSpot, err := cmd.Flags().GetBool("use-spot")
-			if err != nil {
-				return fmt.Errorf("failed to get use-spot flag: %w", err)
-			}
+		fmt.Println("🎯 KubeShadow Lab Deployment")
+		fmt.Println("================================")
 
-			fmt.Println("🎯 KubeShadow Lab Deployment")
-			fmt.Println("================================")
+		// Validate provider
+		validProviders := []string{"aws", "gcp", "azure", "minikube", "kind", "local"}
+		if !contains(validProviders, provider) {
+			return fmt.Errorf("invalid provider: %s. Valid options: %s", provider, strings.Join(validProviders, ", "))
+		}
 
-			// Validate provider
-			validProviders := []string{"aws", "gcp", "azure", "minikube", "kind", "local"}
-			if !contains(validProviders, provider) {
-				return fmt.Errorf("invalid provider: %s. Valid options: %s", provider, strings.Join(validProviders, ", "))
-			}
-
-			// Handle cloud providers
-			if contains([]string{"aws", "gcp", "azure"}, provider) {
-				if !skipAuth {
-					fmt.Printf("🔐 Please authenticate with %s first:\n", strings.ToUpper(provider))
-					if err := authenticateCloudProvider(provider); err != nil {
-						return fmt.Errorf("authentication failed: %w", err)
-					}
+		// Handle cloud providers
+		if contains([]string{"aws", "gcp", "azure"}, provider) {
+			if !skipAuth {
+				fmt.Printf("🔐 Please authenticate with %s first:\n", strings.ToUpper(provider))
+				if err := authenticateCloudProvider(provider); err != nil {
+					return fmt.Errorf("authentication failed: %w", err)
 				}
-
-				fmt.Printf("☁️  Deploying lab environment to %s...\n", strings.ToUpper(provider))
-				fmt.Printf("📏 Cluster size: %s\n", clusterSize)
-				if useSpot {
-					fmt.Println("💰 Using spot instances for cost savings")
-				}
-				return deployCloudLab(provider, region, clusterName, clusterSize, useSpot)
 			}
 
-			// Handle local environments
-			if contains([]string{"minikube", "kind", "local"}, provider) {
-				fmt.Printf("🏠 Deploying lab environment to %s...\n", provider)
-				return deployLocalLab(provider, clusterName)
+			fmt.Printf("☁️  Deploying lab environment to %s...\n", strings.ToUpper(provider))
+			fmt.Printf("📏 Cluster size: %s\n", clusterSize)
+			if useSpot {
+				fmt.Println("💰 Using spot instances for cost savings")
 			}
+			return deployCloudLab(provider, region, clusterName, clusterSize, useSpot)
+		}
 
-			return fmt.Errorf("unsupported provider: %s", provider)
-		})
+		// Handle local environments
+		if contains([]string{"minikube", "kind", "local"}, provider) {
+			fmt.Printf("🏠 Deploying lab environment to %s...\n", provider)
+			return deployLocalLab(provider, clusterName)
+		}
+
+		return fmt.Errorf("unsupported provider: %s", provider)
 	},
 }
 

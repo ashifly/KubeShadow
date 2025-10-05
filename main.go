@@ -74,6 +74,9 @@ func init() {
 	rootCmd.AddCommand(lab.LabCmd)
 	rootCmd.AddCommand(owasp_top10.OwaspCmd)
 
+	// Enable dashboard integration for all modules
+	enableDashboardIntegration(rootCmd)
+
 	// Since the root command's Run function now explicitly prints help,
 	// we might remove the default help command printing from Cobra.
 	// rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
@@ -95,4 +98,62 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+// enableDashboardIntegration enables dashboard integration for all commands
+func enableDashboardIntegration(rootCmd *cobra.Command) {
+	// Recursively enable dashboard for all subcommands
+	enableDashboardForCommand(rootCmd)
+}
+
+// enableDashboardForCommand enables dashboard integration for a command and its subcommands
+func enableDashboardForCommand(cmd *cobra.Command) {
+	// Add dashboard flag to this command if it doesn't have one
+	if !cmd.Flags().Changed("dashboard") {
+		cmd.Flags().Bool("dashboard", false, "Enable dashboard to display results")
+	}
+
+	// Enable dashboard integration for this command
+	dashboard.EnableDashboardForModule(getModuleName(cmd), cmd)
+
+	// Recursively enable for all subcommands
+	for _, subCmd := range cmd.Commands() {
+		enableDashboardForCommand(subCmd)
+	}
+}
+
+// getModuleName determines the module name from the command
+func getModuleName(cmd *cobra.Command) string {
+	// Map command names to module names
+	moduleMap := map[string]string{
+		"recon":           "recon",
+		"etcd-inject":     "cluster-exploit",
+		"kubelet-hijack":  "cluster-exploit",
+		"sidecar-inject":  "cluster-exploit",
+		"rbac-escalate":   "cluster-exploit",
+		"namespace-pivot": "cluster-exploit",
+		"metadata-hijack":  "multi-cloud",
+		"cloud-elevator":  "multi-cloud",
+		"assume-role":     "multi-cloud",
+		"audit-bypass":    "stealth",
+		"dns-poison":      "stealth",
+		"cleanup":         "stealth",
+		"registry-backdoor": "out-cluster",
+		"dashboard":       "dashboard",
+		"demo":            "demo",
+		"data-exfil":      "data-exfil",
+		"lab":             "lab",
+		"owasp":          "owasp-top10",
+		"k01":            "k01-insecure-workload",
+		"k02":            "k02-supply-chain",
+		"k03":            "k03-rbac",
+		"k04":            "k04-policy",
+	}
+
+	if module, exists := moduleMap[cmd.Name()]; exists {
+		return module
+	}
+
+	// Default to command name
+	return cmd.Name()
 }
