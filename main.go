@@ -17,6 +17,7 @@ import (
 	owasp_top10 "kubeshadow/modules/owasp_top10"
 	recon "kubeshadow/modules/recon"
 	stealth "kubeshadow/modules/stealth"
+	recon_graph "kubeshadow/pkg/recon_graph"
 
 	// Note: ai_engine package is not yet exposed as commands
 
@@ -73,6 +74,7 @@ func init() {
 	rootCmd.AddCommand(data_exfil.DataExfilCmd)
 	rootCmd.AddCommand(lab.LabCmd)
 	rootCmd.AddCommand(owasp_top10.OwaspCmd)
+	rootCmd.AddCommand(recon_graph.ReconGraphCmd)
 
 	// Enable dashboard integration for all modules
 	enableDashboardIntegration(rootCmd)
@@ -126,28 +128,28 @@ func enableDashboardForCommand(cmd *cobra.Command) {
 func getModuleName(cmd *cobra.Command) string {
 	// Map command names to module names
 	moduleMap := map[string]string{
-		"recon":           "recon",
-		"etcd-inject":     "cluster-exploit",
-		"kubelet-hijack":  "cluster-exploit",
-		"sidecar-inject":  "cluster-exploit",
-		"rbac-escalate":   "cluster-exploit",
-		"namespace-pivot": "cluster-exploit",
-		"metadata-hijack":  "multi-cloud",
-		"cloud-elevator":  "multi-cloud",
-		"assume-role":     "multi-cloud",
-		"audit-bypass":    "stealth",
-		"dns-poison":      "stealth",
-		"cleanup":         "stealth",
+		"recon":             "recon",
+		"etcd-inject":       "cluster-exploit",
+		"kubelet-hijack":    "cluster-exploit",
+		"sidecar-inject":    "cluster-exploit",
+		"rbac-escalate":     "cluster-exploit",
+		"namespace-pivot":   "cluster-exploit",
+		"metadata-hijack":   "multi-cloud",
+		"cloud-elevator":    "multi-cloud",
+		"assume-role":       "multi-cloud",
+		"audit-bypass":      "stealth",
+		"dns-poison":        "stealth",
+		"cleanup":           "stealth",
 		"registry-backdoor": "out-cluster",
-		"dashboard":       "dashboard",
-		"demo":            "demo",
-		"data-exfil":      "data-exfil",
-		"lab":             "lab",
-		"owasp":          "owasp-top10",
-		"k01":            "k01-insecure-workload",
-		"k02":            "k02-supply-chain",
-		"k03":            "k03-rbac",
-		"k04":            "k04-policy",
+		"dashboard":         "dashboard",
+		"demo":              "demo",
+		"data-exfil":        "data-exfil",
+		"lab":               "lab",
+		"owasp":             "owasp-top10",
+		"k01":               "k01-insecure-workload",
+		"k02":               "k02-supply-chain",
+		"k03":               "k03-rbac",
+		"k04":               "k04-policy",
 	}
 
 	if module, exists := moduleMap[cmd.Name()]; exists {

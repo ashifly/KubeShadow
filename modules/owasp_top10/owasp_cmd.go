@@ -6,6 +6,12 @@ import (
 	k02_supply_chain "kubeshadow/modules/owasp_top10/k02_supply_chain"
 	k03_rbac "kubeshadow/modules/owasp_top10/k03_rbac"
 	k04_policy "kubeshadow/modules/owasp_top10/k04_policy"
+	k05_telemetry "kubeshadow/modules/owasp_top10/k05_telemetry"
+	k06_auth "kubeshadow/modules/owasp_top10/k06_auth"
+	k07_network "kubeshadow/modules/owasp_top10/k07_network"
+	k08_secrets "kubeshadow/modules/owasp_top10/k08_secrets"
+	k09_components "kubeshadow/modules/owasp_top10/k09_components"
+	k10_vulnerabilities "kubeshadow/modules/owasp_top10/k10_vulnerabilities"
 	"kubeshadow/pkg/logger"
 
 	"github.com/spf13/cobra"
@@ -96,12 +102,12 @@ func showAvailableModules() error {
 		{"K02", "Supply Chain Vulnerabilities", "Detects risky images, mutable registries, and CI pipeline issues", "✅ Implemented"},
 		{"K03", "Overly Permissive RBAC Configurations", "Builds RBAC graphs and finds escalation chains", "✅ Implemented"},
 		{"K04", "Lack of Centralized Policy Enforcement", "Detects missing Gatekeeper/OPA/Kyverno and policy gaps", "✅ Implemented"},
-		{"K05", "XML External Entities (XXE)", "XML processing vulnerabilities and external entity attacks", "🔄 Planned"},
-		{"K06", "Broken Access Control", "Privilege escalation and resource access violations", "🔄 Planned"},
-		{"K07", "Security Misconfiguration", "Cluster configuration and component security gaps", "🔄 Planned"},
-		{"K08", "Cross-Site Scripting (XSS)", "Web application vulnerabilities and script injection", "🔄 Planned"},
-		{"K09", "Insecure Deserialization", "Object deserialization and code execution risks", "🔄 Planned"},
-		{"K10", "Known Vulnerabilities", "Container image and dependency security issues", "🔄 Planned"},
+		{"K05", "Inadequate Logging and Monitoring", "Detects missing audit logs, eBPF probes, and SIEM integration", "✅ Implemented"},
+		{"K06", "Broken Authentication Mechanisms", "Detects weak API server auth, anonymous access, and credential exposure", "✅ Implemented"},
+		{"K07", "Missing Network Segmentation Controls", "Detects lack of NetworkPolicies, hostNetwork usage, and public service exposure", "✅ Implemented"},
+		{"K08", "Secrets Management Failures", "Detects raw secrets in env vars, ConfigMaps, unencrypted etcd, and exposed vaults", "✅ Implemented"},
+		{"K09", "Misconfigured Cluster Components", "Detects outdated controllers, webhook misconfigs, and risky CRDs", "✅ Implemented"},
+		{"K10", "Outdated and Vulnerable Kubernetes Components", "Detects outdated versions and known CVEs affecting components", "✅ Implemented"},
 		{"K11", "Insufficient Logging & Monitoring", "Audit log gaps and security event detection", "🔄 Planned"},
 	}
 
@@ -162,17 +168,53 @@ func runSpecificModules(moduleList string) error {
 				logger.Info("✅ K04 completed")
 			}
 		case "K05":
-			logger.Info("🔍 K05 - XML External Entities (not yet implemented)")
+			logger.Info("🔍 Running K05 - Inadequate Logging and Monitoring...")
+			// Run K05 module
+			if err := k05_telemetry.TelemetryCmd.Execute(); err != nil {
+				logger.Warn("K05 failed: %v", err)
+			} else {
+				logger.Info("✅ K05 completed")
+			}
 		case "K06":
-			logger.Info("🔍 K06 - Broken Access Control (not yet implemented)")
+			logger.Info("🔍 Running K06 - Broken Authentication Mechanisms...")
+			// Run K06 module
+			if err := k06_auth.AuthCmd.Execute(); err != nil {
+				logger.Warn("K06 failed: %v", err)
+			} else {
+				logger.Info("✅ K06 completed")
+			}
 		case "K07":
-			logger.Info("🔍 K07 - Security Misconfiguration (not yet implemented)")
+			logger.Info("🔍 Running K07 - Missing Network Segmentation Controls...")
+			// Run K07 module
+			if err := k07_network.NetworkCmd.Execute(); err != nil {
+				logger.Warn("K07 failed: %v", err)
+			} else {
+				logger.Info("✅ K07 completed")
+			}
 		case "K08":
-			logger.Info("🔍 K08 - Cross-Site Scripting (not yet implemented)")
+			logger.Info("🔍 Running K08 - Secrets Management Failures...")
+			// Run K08 module
+			if err := k08_secrets.SecretsCmd.Execute(); err != nil {
+				logger.Warn("K08 failed: %v", err)
+			} else {
+				logger.Info("✅ K08 completed")
+			}
 		case "K09":
-			logger.Info("🔍 K09 - Insecure Deserialization (not yet implemented)")
+			logger.Info("🔍 Running K09 - Misconfigured Cluster Components...")
+			// Run K09 module
+			if err := k09_components.ComponentsCmd.Execute(); err != nil {
+				logger.Warn("K09 failed: %v", err)
+			} else {
+				logger.Info("✅ K09 completed")
+			}
 		case "K10":
-			logger.Info("🔍 K10 - Known Vulnerabilities (not yet implemented)")
+			logger.Info("🔍 Running K10 - Outdated and Vulnerable Kubernetes Components...")
+			// Run K10 module
+			if err := k10_vulnerabilities.VulnerabilitiesCmd.Execute(); err != nil {
+				logger.Warn("K10 failed: %v", err)
+			} else {
+				logger.Info("✅ K10 completed")
+			}
 		case "K11":
 			logger.Info("🔍 K11 - Insufficient Logging & Monitoring (not yet implemented)")
 		default:
@@ -188,8 +230,8 @@ func runAllModules() error {
 	logger.Info("🔍 Running all implemented OWASP Top 10 modules...")
 	logger.Info("")
 
-	// Currently K01, K02, K03, and K04 are implemented
-	implementedModules := []string{"K01", "K02", "K03", "K04"}
+	// Currently K01, K02, K03, K04, K05, K06, K07, K08, K09, and K10 are implemented
+	implementedModules := []string{"K01", "K02", "K03", "K04", "K05", "K06", "K07", "K08", "K09", "K10"}
 
 	for _, module := range implementedModules {
 		logger.Info("🔍 Running %s...", module)
@@ -241,6 +283,24 @@ func init() {
 
 	// K04 command
 	OwaspCmd.AddCommand(k04_policy.PolicyCmd)
+
+	// K05 command
+	OwaspCmd.AddCommand(k05_telemetry.TelemetryCmd)
+
+	// K06 command
+	OwaspCmd.AddCommand(k06_auth.AuthCmd)
+
+	// K07 command
+	OwaspCmd.AddCommand(k07_network.NetworkCmd)
+
+	// K08 command
+	OwaspCmd.AddCommand(k08_secrets.SecretsCmd)
+
+	// K09 command
+	OwaspCmd.AddCommand(k09_components.ComponentsCmd)
+
+	// K10 command
+	OwaspCmd.AddCommand(k10_vulnerabilities.VulnerabilitiesCmd)
 
 	// List command
 	OwaspCmd.AddCommand(&cobra.Command{
