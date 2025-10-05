@@ -13,17 +13,7 @@ import (
 	"kubeshadow/pkg/logger"
 )
 
-const (
-	// Cloud metadata endpoints
-	awsMetadata   = "http://169.254.169.254/latest/meta-data/"
-	gcpMetadata   = "http://metadata.google.internal/computeMetadata/v1/"
-	azureMetadata = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
-
-	// Additional cloud endpoints to check
-	awsIMDSv2   = "http://169.254.169.254/latest/api/token"
-	gcpInternal = "http://metadata.google.internal/"
-	azureIMDS   = "http://169.254.169.254/metadata/identity/oauth2/token"
-)
+// Cloud metadata endpoints are defined inline where used
 
 // CloudMetadata represents cloud provider metadata
 type CloudMetadata struct {

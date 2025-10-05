@@ -372,7 +372,7 @@ func getCRIOVolumes(ctx context.Context) ([]VolumeInfo, error) {
 	return volumes, nil
 }
 
-func getVolumeStats(mountpoint string) (int64, int64, int64, error) {
+func getVolumeStats(_ string) (int64, int64, int64, error) {
 	// Syscall.Statfs is not available on Windows
 	// Return mock data for now
 	return 0, 0, 0, fmt.Errorf("volume stats not supported on Windows")

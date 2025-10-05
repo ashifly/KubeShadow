@@ -20,37 +20,40 @@ fi
 
 echo "✅ Kubernetes cluster is accessible"
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Create namespaces
 echo "📁 Creating namespaces..."
-kubectl apply -f 01-namespace.yaml
+kubectl apply -f "$SCRIPT_DIR/01-namespace.yaml"
 
 # Set up RBAC
 echo "🔐 Setting up RBAC configurations..."
-kubectl apply -f 02-rbac.yaml
+kubectl apply -f "$SCRIPT_DIR/02-rbac.yaml"
 
 # Deploy pods
 echo "🚀 Deploying pods..."
-kubectl apply -f 03-pods.yaml
+kubectl apply -f "$SCRIPT_DIR/03-pods.yaml"
 
 # Create services
 echo "🌐 Creating services..."
-kubectl apply -f 04-services.yaml
+kubectl apply -f "$SCRIPT_DIR/04-services.yaml"
 
 # Create secrets
 echo "🔑 Creating secrets..."
-kubectl apply -f 05-secrets.yaml
+kubectl apply -f "$SCRIPT_DIR/05-secrets.yaml"
 
 # Create configmaps
 echo "⚙️ Creating configmaps..."
-kubectl apply -f 06-configmaps.yaml
+kubectl apply -f "$SCRIPT_DIR/06-configmaps.yaml"
 
 # Apply network policies
 echo "🛡️ Applying network policies..."
-kubectl apply -f 07-network-policies.yaml
+kubectl apply -f "$SCRIPT_DIR/07-network-policies.yaml"
 
 # Create persistent volumes
 echo "💾 Creating persistent volumes..."
-kubectl apply -f 08-persistent-volumes.yaml
+kubectl apply -f "$SCRIPT_DIR/08-persistent-volumes.yaml"
 
 # Wait for pods to be ready
 echo "⏳ Waiting for pods to be ready..."

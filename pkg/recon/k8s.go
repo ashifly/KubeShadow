@@ -228,7 +228,7 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 
 	// Get nodes
 	fmt.Printf("\n🔍 NODE DISCOVERY\n")
-	fmt.Printf("─" + strings.Repeat("─", 50) + "\n")
+	fmt.Printf("─%s\n", strings.Repeat("─", 50))
 	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("❌ Failed to list nodes: %v\n", err)
@@ -246,7 +246,7 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 
 	// Get namespaces
 	fmt.Printf("\n📁 NAMESPACE ANALYSIS\n")
-	fmt.Printf(strings.Repeat("─", 30) + "\n")
+	fmt.Printf("%s\n", strings.Repeat("─", 30))
 	namespaces, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("❌ Failed to list namespaces: %v\n", err)
@@ -308,11 +308,11 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 					for _, svc := range services.Items {
 						svcType := string(svc.Spec.Type)
 						externalIP := "<none>"
-						if svc.Spec.ExternalIPs != nil && len(svc.Spec.ExternalIPs) > 0 {
+						if len(svc.Spec.ExternalIPs) > 0 {
 							externalIP = svc.Spec.ExternalIPs[0]
 						} else if svc.Spec.LoadBalancerIP != "" {
 							externalIP = svc.Spec.LoadBalancerIP
-						} else if svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) > 0 {
+						} else if len(svc.Status.LoadBalancer.Ingress) > 0 {
 							if svc.Status.LoadBalancer.Ingress[0].IP != "" {
 								externalIP = svc.Status.LoadBalancer.Ingress[0].IP
 							} else if svc.Status.LoadBalancer.Ingress[0].Hostname != "" {
@@ -423,7 +423,7 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 
 	// ➕ Cluster-scoped PersistentVolumes
 	fmt.Printf("\n💾 PERSISTENT VOLUMES\n")
-	fmt.Printf(strings.Repeat("─", 30) + "\n")
+	fmt.Printf("%s\n", strings.Repeat("─", 30))
 	pvs, err := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		fmt.Printf("❌ Failed to list persistent volumes: %v\n", err)
@@ -466,7 +466,7 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 	// RBAC enumeration (conditional)
 	if showRBAC {
 		fmt.Printf("\n🔐 RBAC ANALYSIS\n")
-		fmt.Printf(strings.Repeat("─", 30) + "\n")
+		fmt.Printf("%s\n", strings.Repeat("─", 30))
 
 		// Basic RBAC enumeration
 		rbs, err := clientset.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{})
@@ -496,9 +496,9 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 
 	// Enhanced reconnaissance summary
 	if !stealth {
-		fmt.Printf("\n" + strings.Repeat("=", 60) + "\n")
+		fmt.Printf("\n%s\n", strings.Repeat("=", 60))
 		fmt.Printf("🎯 ENHANCED RECONNAISSANCE SUMMARY\n")
-		fmt.Printf(strings.Repeat("=", 60) + "\n")
+		fmt.Printf("%s\n", strings.Repeat("=", 60))
 
 		// Get total counts
 		allPods, _ := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
@@ -529,8 +529,8 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 		externalServices := 0
 		for _, svc := range allServices.Items {
 			if svc.Spec.Type == corev1.ServiceTypeLoadBalancer ||
-				(svc.Spec.ExternalIPs != nil && len(svc.Spec.ExternalIPs) > 0) ||
-				(svc.Status.LoadBalancer.Ingress != nil && len(svc.Status.LoadBalancer.Ingress) > 0) {
+				len(svc.Spec.ExternalIPs) > 0 ||
+				len(svc.Status.LoadBalancer.Ingress) > 0 {
 				externalServices++
 			}
 		}
@@ -577,7 +577,7 @@ func K8sRecon(ctx context.Context, kubeconfigPath string, stealth bool, showRBAC
 			fmt.Printf("   🚨 %d namespaces without NetworkPolicies\n", namespacesWithoutNP)
 		}
 
-		fmt.Printf(strings.Repeat("=", 60) + "\n")
+		fmt.Printf("%s\n", strings.Repeat("=", 60))
 	}
 
 	return nil

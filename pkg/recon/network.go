@@ -1301,7 +1301,7 @@ func getServiceName(port int, protocol string) string {
 	return ""
 }
 
-func getProcessInfo(inode string) (string, string) {
+func getProcessInfo(_ string) (string, string) {
 	// Read /proc/net/tcp and /proc/net/udp to find the process
 	// This is a simplified version - in reality, you'd need to check /proc/*/fd
 	return "", ""

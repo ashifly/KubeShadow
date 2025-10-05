@@ -78,7 +78,17 @@ var ReconCmd = &cobra.Command{
 		if !cloudOnly && !systemOnly && !networkOnly && !containerOnly && !volumeOnly && !processOnly && !kubernetesOnly {
 			fmt.Println("🔍 Starting Kubernetes API Recon...")
 			if err := recon.K8sRecon(ctx, kubeconfig, stealth, showRBAC); err != nil {
-				reconErrors = append(reconErrors, fmt.Errorf("Kubernetes API recon failed: %w", err))
+				reconErrors = append(reconErrors, fmt.Errorf("kubernetes API recon failed: %w", err))
+			}
+		}
+
+		// Pod Vulnerability Scanning
+		if !cloudOnly && !systemOnly && !networkOnly && !containerOnly && !volumeOnly && !processOnly {
+			fmt.Println("🚨 Starting Pod Vulnerability Scan...")
+			if vulnerabilities, err := recon.PodVulnerabilityScan(ctx, kubeconfig); err != nil {
+				reconErrors = append(reconErrors, fmt.Errorf("pod vulnerability scan failed: %w", err))
+			} else {
+				recon.PrintVulnerabilities(vulnerabilities)
 			}
 		}
 
@@ -86,14 +96,14 @@ var ReconCmd = &cobra.Command{
 		if !k8sOnly && !systemOnly && !networkOnly && !containerOnly && !volumeOnly && !processOnly && !kubernetesOnly {
 			fmt.Println("☁️  Starting Cloud Metadata Recon...")
 			if err := recon.CloudRecon(ctx, stealth); err != nil {
-				reconErrors = append(reconErrors, fmt.Errorf("Cloud recon failed: %w", err))
+				reconErrors = append(reconErrors, fmt.Errorf("cloud recon failed: %w", err))
 			}
-			
+
 			// Enhanced cloud reconnaissance
 			if !stealth {
 				fmt.Println("☁️  Starting Enhanced Cloud Recon...")
 				if err := recon.CloudMetadataRecon(ctx, stealth); err != nil {
-					reconErrors = append(reconErrors, fmt.Errorf("Enhanced cloud recon failed: %w", err))
+					reconErrors = append(reconErrors, fmt.Errorf("enhanced cloud recon failed: %w", err))
 				}
 			}
 		}
@@ -105,7 +115,7 @@ var ReconCmd = &cobra.Command{
 				if strings.Contains(err.Error(), "not running in a Kubernetes cluster") {
 					fmt.Println("   ℹ️  Not running in Kubernetes cluster (running from outside)")
 				} else {
-					reconErrors = append(reconErrors, fmt.Errorf("Kubernetes in-cluster recon failed: %w", err))
+					reconErrors = append(reconErrors, fmt.Errorf("kubernetes in-cluster recon failed: %w", err))
 				}
 			} else {
 				fmt.Printf("   ✅ Running in Kubernetes cluster\n")
@@ -124,7 +134,7 @@ var ReconCmd = &cobra.Command{
 		if !cloudOnly && !k8sOnly && !networkOnly && !containerOnly && !volumeOnly && !processOnly && !kubernetesOnly {
 			fmt.Println("💻 Starting System Recon...")
 			if systemInfo, err := recon.GetSystemInfo(ctx); err != nil {
-				reconErrors = append(reconErrors, fmt.Errorf("System recon failed: %w", err))
+				reconErrors = append(reconErrors, fmt.Errorf("system recon failed: %w", err))
 			} else {
 				fmt.Printf("   ✅ Hostname: %s\n", systemInfo.Hostname)
 				fmt.Printf("   ✅ OS: %s %s\n", systemInfo.OSInfo.Name, systemInfo.OSInfo.Version)
@@ -132,8 +142,8 @@ var ReconCmd = &cobra.Command{
 				fmt.Printf("   ✅ Kernel: %s\n", systemInfo.KernelVersion)
 				if !stealth {
 					fmt.Printf("   📋 CPU: %s (%d cores)\n", systemInfo.CPUInfo.Model, systemInfo.CPUInfo.Cores)
-					fmt.Printf("   📋 Memory: %d MB total, %d MB free\n", 
-						systemInfo.MemoryInfo.Total/1024/1024, 
+					fmt.Printf("   📋 Memory: %d MB total, %d MB free\n",
+						systemInfo.MemoryInfo.Total/1024/1024,
 						systemInfo.MemoryInfo.Free/1024/1024)
 					fmt.Printf("   📋 Uptime: %v\n", systemInfo.Uptime)
 				}
@@ -144,11 +154,11 @@ var ReconCmd = &cobra.Command{
 		if !cloudOnly && !k8sOnly && !systemOnly && !containerOnly && !volumeOnly && !processOnly && !kubernetesOnly {
 			fmt.Println("🌐 Starting Network Recon...")
 			if networkInfo, err := recon.GetNetworkInfo(ctx); err != nil {
-				if strings.Contains(err.Error(), "failed to read /proc/net/tcp") || 
-				   strings.Contains(err.Error(), "Unable to get open ports") {
+				if strings.Contains(err.Error(), "failed to read /proc/net/tcp") ||
+					strings.Contains(err.Error(), "Unable to get open ports") {
 					fmt.Println("   ℹ️  Network recon limited on this platform")
 				} else {
-					reconErrors = append(reconErrors, fmt.Errorf("Network recon failed: %w", err))
+					reconErrors = append(reconErrors, fmt.Errorf("network recon failed: %w", err))
 				}
 			} else {
 				fmt.Printf("   ✅ Hostname: %s\n", networkInfo.Hostname)
@@ -169,7 +179,7 @@ var ReconCmd = &cobra.Command{
 				if strings.Contains(err.Error(), "no containers found") {
 					fmt.Println("   ℹ️  No containers found (not running in container environment)")
 				} else {
-					reconErrors = append(reconErrors, fmt.Errorf("Container recon failed: %w", err))
+					reconErrors = append(reconErrors, fmt.Errorf("container recon failed: %w", err))
 				}
 			} else {
 				fmt.Printf("   ✅ Found %d containers\n", len(containers))
@@ -188,7 +198,7 @@ var ReconCmd = &cobra.Command{
 				if strings.Contains(err.Error(), "no volumes found") {
 					fmt.Println("   ℹ️  No volumes found (not running in container environment)")
 				} else {
-					reconErrors = append(reconErrors, fmt.Errorf("Volume recon failed: %w", err))
+					reconErrors = append(reconErrors, fmt.Errorf("volume recon failed: %w", err))
 				}
 			} else {
 				fmt.Printf("   ✅ Found %d volumes\n", len(volumes))
@@ -204,11 +214,11 @@ var ReconCmd = &cobra.Command{
 		if !cloudOnly && !k8sOnly && !systemOnly && !networkOnly && !containerOnly && !volumeOnly && !kubernetesOnly {
 			fmt.Println("⚙️  Starting Process Recon...")
 			if processes, err := recon.GetProcessInfo(ctx); err != nil {
-				if strings.Contains(err.Error(), "failed to read /proc directory") || 
-				   strings.Contains(err.Error(), "Unable to get process information") {
+				if strings.Contains(err.Error(), "failed to read /proc directory") ||
+					strings.Contains(err.Error(), "Unable to get process information") {
 					fmt.Println("   ℹ️  Process recon limited on this platform")
 				} else {
-					reconErrors = append(reconErrors, fmt.Errorf("Process recon failed: %w", err))
+					reconErrors = append(reconErrors, fmt.Errorf("process recon failed: %w", err))
 				}
 			} else {
 				fmt.Printf("   ✅ Found %d processes\n", len(processes))

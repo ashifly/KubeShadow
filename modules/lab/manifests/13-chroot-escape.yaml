@@ -1,0 +1,443 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chroot-escape-lab
+  labels:
+    name: chroot-escape-lab
+    security-level: vulnerable
+---
+# VULNERABLE: Service account with excessive permissions
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: escape-sa
+  namespace: chroot-escape-lab
+---
+# VULNERABLE: Overly permissive role for chroot escape
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: escape-role
+  namespace: chroot-escape-lab
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/portforward"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: escape-role-binding
+  namespace: chroot-escape-lab
+subjects:
+- kind: ServiceAccount
+  name: escape-sa
+  namespace: chroot-escape-lab
+roleRef:
+  kind: Role
+  name: escape-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# VULNERABLE: Host simulation container with host filesystem access
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-simulator
+  namespace: chroot-escape-lab
+  labels:
+    app: host-simulator
+    security-level: critical
+spec:
+  serviceAccountName: escape-sa
+  containers:
+  - name: host-sim
+    image: alpine:latest
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do sleep 3600; done"]
+    ports:
+    - containerPort: 22
+    - containerPort: 80
+    - containerPort: 443
+    env:
+    - name: HOST_SIMULATION
+      value: "true"
+    - name: ROOT_PASSWORD
+      value: "toor"
+    - name: SSH_KEY
+      value: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7..."
+    volumeMounts:
+    - name: host-fs
+      mountPath: /host
+      readOnly: false
+    - name: proc
+      mountPath: /host/proc
+      readOnly: false
+    - name: sys
+      mountPath: /host/sys
+      readOnly: false
+    - name: dev
+      mountPath: /host/dev
+      readOnly: false
+    - name: etc
+      mountPath: /host/etc
+      readOnly: false
+    - name: var
+      mountPath: /host/var
+      readOnly: false
+    - name: usr
+      mountPath: /host/usr
+      readOnly: false
+    - name: bin
+      mountPath: /host/bin
+      readOnly: false
+    - name: sbin
+      mountPath: /host/sbin
+      readOnly: false
+    - name: lib
+      mountPath: /host/lib
+      readOnly: false
+    - name: lib64
+      mountPath: /host/lib64
+      readOnly: false
+    - name: opt
+      mountPath: /host/opt
+      readOnly: false
+    - name: home
+      mountPath: /host/home
+      readOnly: false
+    - name: root
+      mountPath: /host/root
+      readOnly: false
+    - name: tmp
+      mountPath: /host/tmp
+      readOnly: false
+    - name: var-log
+      mountPath: /host/var/log
+      readOnly: false
+    - name: var-lib
+      mountPath: /host/var/lib
+      readOnly: false
+    - name: etc-kubernetes
+      mountPath: /host/etc/kubernetes
+      readOnly: false
+    - name: var-lib-kubelet
+      mountPath: /host/var/lib/kubelet
+      readOnly: false
+    - name: etc-docker
+      mountPath: /host/etc/docker
+      readOnly: false
+    - name: var-lib-docker
+      mountPath: /host/var/lib/docker
+      readOnly: false
+    - name: etc-systemd
+      mountPath: /host/etc/systemd
+      readOnly: false
+    - name: var-lib-systemd
+      mountPath: /host/var/lib/systemd
+      readOnly: false
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      privileged: true
+      allowPrivilegeEscalation: true
+      capabilities:
+        add:
+        - SYS_CHROOT
+        - SYS_ADMIN
+        - SYS_PTRACE
+        - SYS_MODULE
+        - SYS_RAWIO
+        - SYS_TIME
+        - SYS_TTY_CONFIG
+        - MKNOD
+        - AUDIT_WRITE
+        - AUDIT_CONTROL
+        - SETFCAP
+        - MAC_OVERRIDE
+        - MAC_ADMIN
+        - SYSLOG
+        - WAKE_ALARM
+        - BLOCK_SUSPEND
+        - LEASE
+        - DAC_OVERRIDE
+        - DAC_READ_SEARCH
+        - FOWNER
+        - FSETID
+        - KILL
+        - SETGID
+        - SETUID
+        - NET_BIND_SERVICE
+        - NET_RAW
+        - IPC_LOCK
+        - IPC_OWNER
+        - SYS_CHROOT
+        - SYS_PACCT
+        - SYS_ADMIN
+        - SYS_BOOT
+        - SYS_NICE
+        - SYS_RESOURCE
+        - SYS_TIME
+        - SYS_TTY_CONFIG
+        - MKNOD
+        - LEASE
+        - AUDIT_WRITE
+        - AUDIT_CONTROL
+        - SETFCAP
+        - MAC_OVERRIDE
+        - MAC_ADMIN
+        - SYSLOG
+        - WAKE_ALARM
+        - BLOCK_SUSPEND
+        - ALL
+        drop: []
+      readOnlyRootFilesystem: false
+  volumes:
+  - name: host-fs
+    hostPath:
+      path: /
+  - name: proc
+    hostPath:
+      path: /proc
+  - name: sys
+    hostPath:
+      path: /sys
+  - name: dev
+    hostPath:
+      path: /dev
+  - name: etc
+    hostPath:
+      path: /etc
+  - name: var
+    hostPath:
+      path: /var
+  - name: usr
+    hostPath:
+      path: /usr
+  - name: bin
+    hostPath:
+      path: /bin
+  - name: sbin
+    hostPath:
+      path: /sbin
+  - name: lib
+    hostPath:
+      path: /lib
+  - name: lib64
+    hostPath:
+      path: /lib64
+  - name: opt
+    hostPath:
+      path: /opt
+  - name: home
+    hostPath:
+      path: /home
+  - name: root
+    hostPath:
+      path: /root
+  - name: tmp
+    hostPath:
+      path: /tmp
+  - name: var-log
+    hostPath:
+      path: /var/log
+  - name: var-lib
+    hostPath:
+      path: /var/lib
+  - name: etc-kubernetes
+    hostPath:
+      path: /etc/kubernetes
+  - name: var-lib-kubelet
+    hostPath:
+      path: /var/lib/kubelet
+  - name: etc-docker
+    hostPath:
+      path: /etc/docker
+  - name: var-lib-docker
+    hostPath:
+      path: /var/lib/docker
+  - name: etc-systemd
+    hostPath:
+      path: /etc/systemd
+  - name: var-lib-systemd
+    hostPath:
+      path: /var/lib/systemd
+  restartPolicy: Always
+---
+# VULNERABLE: Container with CAP_SYS_CHROOT for escape testing
+apiVersion: v1
+kind: Pod
+metadata:
+  name: chroot-escape-target
+  namespace: chroot-escape-lab
+  labels:
+    app: chroot-escape-target
+    security-level: vulnerable
+spec:
+  serviceAccountName: escape-sa
+  containers:
+  - name: vulnerable-app
+    image: alpine:latest
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do sleep 3600; done"]
+    ports:
+    - containerPort: 8080
+    env:
+    - name: APP_SECRET
+      value: "super-secret-key-12345"
+    - name: DB_PASSWORD
+      value: "admin123"
+    - name: API_KEY
+      value: "sk-1234567890abcdef"
+    volumeMounts:
+    - name: host-fs
+      mountPath: /host
+      readOnly: true
+    - name: app-data
+      mountPath: /app/data
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      allowPrivilegeEscalation: true
+      capabilities:
+        add:
+        - SYS_CHROOT
+        - SYS_ADMIN
+        - SYS_PTRACE
+        - DAC_OVERRIDE
+        - DAC_READ_SEARCH
+        - FOWNER
+        - FSETID
+        - KILL
+        - SETGID
+        - SETUID
+        - NET_BIND_SERVICE
+        - NET_RAW
+        - IPC_LOCK
+        - IPC_OWNER
+        - SYS_PACCT
+        - SYS_BOOT
+        - SYS_NICE
+        - SYS_RESOURCE
+        - SYS_TIME
+        - SYS_TTY_CONFIG
+        - MKNOD
+        - LEASE
+        - AUDIT_WRITE
+        - AUDIT_CONTROL
+        - SETFCAP
+        - MAC_OVERRIDE
+        - MAC_ADMIN
+        - SYSLOG
+        - WAKE_ALARM
+        - BLOCK_SUSPEND
+        drop: []
+      readOnlyRootFilesystem: false
+  volumes:
+  - name: host-fs
+    hostPath:
+      path: /
+  - name: app-data
+    emptyDir: {}
+  restartPolicy: Always
+---
+# VULNERABLE: Container with minimal privileges for comparison
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secure-app
+  namespace: chroot-escape-lab
+  labels:
+    app: secure-app
+    security-level: secure
+spec:
+  serviceAccountName: escape-sa
+  containers:
+  - name: secure-container
+    image: alpine:latest
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do sleep 3600; done"]
+    ports:
+    - containerPort: 8080
+    env:
+    - name: APP_SECRET
+      value: "secure-secret-key"
+    - name: DB_PASSWORD
+      value: "secure-password"
+    - name: API_KEY
+      value: "secure-api-key"
+    volumeMounts:
+    - name: app-data
+      mountPath: /app/data
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+        add:
+        - NET_BIND_SERVICE
+      readOnlyRootFilesystem: true
+  volumes:
+  - name: app-data
+    emptyDir: {}
+  restartPolicy: Always
+---
+# Secrets for testing
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: chroot-escape-lab
+type: Opaque
+data:
+  root-password: dG9vcg==  # base64: toor
+  ssh-key: c3NoLXJzYSBBQUFBQkNOemFDMXljMkVBQUFEQVFBQUFBZ0FDN0...  # base64: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7...
+  api-token: c2stMTIzNDU2Nzg5MGFiY2RlZg==  # base64: sk-1234567890abcdef
+  db-credentials: YWRtaW4xMjM=  # base64: admin123
+---
+# ConfigMap with sensitive information
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: chroot-escape-lab
+data:
+  app.properties: |
+    database.url=postgres://admin:admin123@db:5432/sensitive_data
+    api.endpoint=https://api.example.com/v1
+    api.key=sk-1234567890abcdef
+    jwt.secret=super-secret-jwt-secret
+    debug.enabled=true
+    debug.level=verbose
+    chroot.escape.enabled=true
+    host.access.enabled=true
+  environment: production
+  region: us-west-2
+  cluster: kubeshadow-lab
+  security.level: vulnerable

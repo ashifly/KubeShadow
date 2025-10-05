@@ -1,0 +1,285 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ephemeral-lab
+  labels:
+    name: ephemeral-lab
+    security-level: vulnerable
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: debug-sa
+  namespace: ephemeral-lab
+---
+# VULNERABLE: Overly permissive role that allows ephemeral container creation
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: debug-role
+  namespace: ephemeral-lab
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods/ephemeralcontainers"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/portforward"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+---
+# VULNERABLE: Cluster-wide permissions for debugging
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: debug-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods/ephemeralcontainers"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/portforward"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: debug-role-binding
+  namespace: ephemeral-lab
+subjects:
+- kind: ServiceAccount
+  name: debug-sa
+  namespace: ephemeral-lab
+roleRef:
+  kind: Role
+  name: debug-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# VULNERABLE: Cluster-wide binding for debugging
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: debug-cluster-role-binding
+subjects:
+- kind: ServiceAccount
+  name: debug-sa
+  namespace: ephemeral-lab
+roleRef:
+  kind: ClusterRole
+  name: debug-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Target pod for ephemeral container attacks
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-app
+  namespace: ephemeral-lab
+  labels:
+    app: web-app
+    security-level: vulnerable
+spec:
+  serviceAccountName: debug-sa
+  containers:
+  - name: web-server
+    image: nginx:1.21
+    ports:
+    - containerPort: 80
+    env:
+    - name: SECRET_KEY
+      value: "super-secret-key-12345"
+    - name: DB_PASSWORD
+      value: "admin123"
+    volumeMounts:
+    - name: app-data
+      mountPath: /var/www/html
+    - name: secrets
+      mountPath: /etc/secrets
+      readOnly: true
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: false
+  volumes:
+  - name: app-data
+    emptyDir: {}
+  - name: secrets
+    secret:
+      secretName: app-secrets
+  restartPolicy: Always
+---
+# Pod with sensitive data
+apiVersion: v1
+kind: Pod
+metadata:
+  name: database
+  namespace: ephemeral-lab
+  labels:
+    app: database
+    security-level: vulnerable
+spec:
+  serviceAccountName: debug-sa
+  containers:
+  - name: postgres
+    image: postgres:13
+    ports:
+    - containerPort: 5432
+    env:
+    - name: POSTGRES_PASSWORD
+      value: "super-secret-db-password"
+    - name: POSTGRES_USER
+      value: "admin"
+    - name: POSTGRES_DB
+      value: "sensitive_data"
+    volumeMounts:
+    - name: db-data
+      mountPath: /var/lib/postgresql/data
+    - name: db-secrets
+      mountPath: /etc/postgresql/secrets
+      readOnly: true
+    securityContext:
+      runAsUser: 999
+      runAsGroup: 999
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: false
+  volumes:
+  - name: db-data
+    emptyDir: {}
+  - name: db-secrets
+    secret:
+      secretName: db-secrets
+  restartPolicy: Always
+---
+# Pod with privileged access (high-value target)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: monitoring
+  namespace: ephemeral-lab
+  labels:
+    app: monitoring
+    security-level: critical
+spec:
+  serviceAccountName: debug-sa
+  containers:
+  - name: monitoring-agent
+    image: prom/node-exporter:latest
+    ports:
+    - containerPort: 9100
+    volumeMounts:
+    - name: proc
+      mountPath: /host/proc
+      readOnly: true
+    - name: sys
+      mountPath: /host/sys
+      readOnly: true
+    - name: root
+      mountPath: /host/root
+      readOnly: true
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      privileged: true
+      allowPrivilegeEscalation: true
+  volumes:
+  - name: proc
+    hostPath:
+      path: /proc
+  - name: sys
+    hostPath:
+      path: /sys
+  - name: root
+    hostPath:
+      path: /
+  restartPolicy: Always
+---
+# Secrets for testing
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: ephemeral-lab
+type: Opaque
+data:
+  api-key: c3VwZXItc2VjcmV0LWFwaS1rZXk=  # base64: super-secret-api-key
+  jwt-secret: c3VwZXItc2VjcmV0LWp3dC1zZWNyZXQ=  # base64: super-secret-jwt-secret
+  db-url: cG9zdGdyZXM6Ly9hZG1pbjpzdXBlci1zZWNyZXQtZGItcGFzc3dvcmRAZGI6NTQzMi9zZW5zaXRpdmVfZGF0YQ==  # base64: postgres://admin:super-secret-db-password@db:5432/sensitive_data
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secrets
+  namespace: ephemeral-lab
+type: Opaque
+data:
+  password: c3VwZXItc2VjcmV0LWRiLXBhc3N3b3Jk  # base64: super-secret-db-password
+  username: YWRtaW4=  # base64: admin
+  connection-string: cG9zdGdyZXM6Ly9hZG1pbjpzdXBlci1zZWNyZXQtZGItcGFzc3dvcmRAZGI6NTQzMi9zZW5zaXRpdmVfZGF0YQ==  # base64: postgres://admin:super-secret-db-password@db:5432/sensitive_data
+---
+# ConfigMap with sensitive information
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: ephemeral-lab
+data:
+  app.properties: |
+    database.url=postgres://admin:super-secret-db-password@db:5432/sensitive_data
+    api.endpoint=https://api.example.com/v1
+    api.key=super-secret-api-key
+    jwt.secret=super-secret-jwt-secret
+    debug.enabled=true
+    debug.level=verbose
+  environment: production
+  region: us-west-2
+  cluster: kubeshadow-lab
