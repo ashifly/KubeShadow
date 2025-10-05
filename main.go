@@ -14,6 +14,7 @@ import (
 	lab "kubeshadow/modules/lab"
 	multi_cloud "kubeshadow/modules/multi_cloud"
 	out_cluster "kubeshadow/modules/out_cluster"
+	owasp_top10 "kubeshadow/modules/owasp_top10"
 	recon "kubeshadow/modules/recon"
 	stealth "kubeshadow/modules/stealth"
 
@@ -71,6 +72,7 @@ func init() {
 	rootCmd.AddCommand(demo.DemoCmd)
 	rootCmd.AddCommand(data_exfil.DataExfilCmd)
 	rootCmd.AddCommand(lab.LabCmd)
+	rootCmd.AddCommand(owasp_top10.OwaspCmd)
 
 	// Since the root command's Run function now explicitly prints help,
 	// we might remove the default help command printing from Cobra.

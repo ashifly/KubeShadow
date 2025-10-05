@@ -12,11 +12,31 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// ClusterConfig represents cluster configuration options
+type ClusterConfig struct {
+	NumNodes    int
+	MinNodes    int
+	MaxNodes    int
+	MachineType string
+	DiskSize    string
+	DiskType    string
+}
+
 var LabCmd = &cobra.Command{
 	Use:   "lab",
 	Short: "Deploy KubeShadow lab environment for security testing",
 	Long: `Deploy a complete KubeShadow lab environment with intentionally vulnerable configurations
-for hands-on security testing practice. Supports cloud providers and local environments.`,
+for hands-on security testing practice. Supports cloud providers and local environments.
+
+Cluster size options (reduces costs and disk usage):
+- minimal: 1 node, 20GB disk (t3.micro/e2-micro/Standard_B1s)
+- small: 2 nodes, 50GB disk (t3.small/e2-small/Standard_B2s)  
+- medium: 3 nodes, 100GB disk (t3.medium/e2-medium/Standard_B2ms)
+
+Examples:
+  kubeshadow lab --provider minikube
+  kubeshadow lab --provider aws --cluster-size minimal --use-spot
+  kubeshadow lab --provider gcp --cluster-size small --use-spot`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Create dashboard wrapper
 		wrapper := dashboard.NewCommandWrapper(cmd, "lab", "lab", args)
@@ -42,6 +62,16 @@ for hands-on security testing practice. Supports cloud providers and local envir
 				return fmt.Errorf("failed to get skip-auth flag: %w", err)
 			}
 
+			clusterSize, err := cmd.Flags().GetString("cluster-size")
+			if err != nil {
+				return fmt.Errorf("failed to get cluster-size flag: %w", err)
+			}
+
+			useSpot, err := cmd.Flags().GetBool("use-spot")
+			if err != nil {
+				return fmt.Errorf("failed to get use-spot flag: %w", err)
+			}
+
 			fmt.Println("🎯 KubeShadow Lab Deployment")
 			fmt.Println("================================")
 
@@ -61,7 +91,11 @@ for hands-on security testing practice. Supports cloud providers and local envir
 				}
 
 				fmt.Printf("☁️  Deploying lab environment to %s...\n", strings.ToUpper(provider))
-				return deployCloudLab(provider, region, clusterName)
+				fmt.Printf("📏 Cluster size: %s\n", clusterSize)
+				if useSpot {
+					fmt.Println("💰 Using spot instances for cost savings")
+				}
+				return deployCloudLab(provider, region, clusterName, clusterSize, useSpot)
 			}
 
 			// Handle local environments
@@ -80,6 +114,8 @@ func init() {
 	LabCmd.Flags().String("region", "us-west-2", "Cloud region (for cloud providers)")
 	LabCmd.Flags().String("cluster-name", "kubeshadow-lab", "Name for the Kubernetes cluster")
 	LabCmd.Flags().Bool("skip-auth", false, "Skip cloud authentication (use existing credentials)")
+	LabCmd.Flags().String("cluster-size", "minimal", "Cluster size: minimal (1 node, 20GB), small (2 nodes, 50GB), medium (3 nodes, 100GB)")
+	LabCmd.Flags().Bool("use-spot", false, "Use spot instances for cost savings (cloud providers only)")
 
 	// Add cleanup subcommand
 	LabCmd.AddCommand(LabCleanupCmd)
@@ -107,16 +143,20 @@ func authenticateCloudProvider(provider string) error {
 }
 
 // deployCloudLab deploys lab to cloud providers
-func deployCloudLab(provider, region, clusterName string) error {
+func deployCloudLab(provider, region, clusterName, clusterSize string, useSpot bool) error {
 	fmt.Printf("🚀 Creating %s cluster: %s in region: %s\n", provider, clusterName, region)
+	fmt.Printf("📏 Cluster size: %s\n", clusterSize)
+	if useSpot {
+		fmt.Println("💰 Using spot instances for cost savings")
+	}
 
 	switch provider {
 	case "aws":
-		return deployAWSLab(region, clusterName)
+		return deployAWSLab(region, clusterName, clusterSize, useSpot)
 	case "gcp":
-		return deployGCPLab(region, clusterName)
+		return deployGCPLab(region, clusterName, clusterSize, useSpot)
 	case "azure":
-		return deployAzureLab(region, clusterName)
+		return deployAzureLab(region, clusterName, clusterSize, useSpot)
 	}
 
 	return fmt.Errorf("unsupported cloud provider: %s", provider)
@@ -139,23 +179,37 @@ func deployLocalLab(provider, clusterName string) error {
 }
 
 // deployAWSLab creates EKS cluster and deploys lab
-func deployAWSLab(region, clusterName string) error {
+func deployAWSLab(region, clusterName, clusterSize string, useSpot bool) error {
 	fmt.Println("📦 Creating EKS cluster...")
 
-	// Create EKS cluster
-	cmd := exec.Command("eksctl", "create", "cluster",
+	// Get cluster configuration based on size
+	config := getClusterConfig(clusterSize, useSpot)
+	fmt.Printf("💡 Using %s cluster configuration to reduce costs and disk usage...\n", clusterSize)
+	fmt.Printf("📊 Nodes: %d, Instance: %s\n", config.NumNodes, config.MachineType)
+
+	// Create EKS cluster with size-specific configuration
+	args := []string{
+		"create", "cluster",
 		"--name", clusterName,
 		"--region", region,
 		"--nodegroup-name", "workers",
-		"--node-type", "t3.medium",
-		"--nodes", "2",
-		"--nodes-min", "1",
-		"--nodes-max", "3",
+		"--node-type", config.MachineType,
+		"--nodes", fmt.Sprintf("%d", config.NumNodes),
+		"--nodes-min", fmt.Sprintf("%d", config.MinNodes),
+		"--nodes-max", fmt.Sprintf("%d", config.MaxNodes),
 		"--managed",
 		"--with-oidc",
 		"--ssh-access",
 		"--ssh-public-key", "kubeshadow-lab",
-		"--full-ecr-access")
+		"--full-ecr-access",
+	}
+
+	// Add spot instance configuration if requested
+	if useSpot {
+		args = append(args, "--spot")
+	}
+
+	cmd := exec.Command("eksctl", args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -174,19 +228,36 @@ func deployAWSLab(region, clusterName string) error {
 }
 
 // deployGCPLab creates GKE cluster and deploys lab
-func deployGCPLab(region, clusterName string) error {
+func deployGCPLab(region, clusterName, clusterSize string, useSpot bool) error {
 	fmt.Println("📦 Creating GKE cluster...")
 
-	// Create GKE cluster
-	cmd := exec.Command("gcloud", "container", "clusters", "create", clusterName,
+	// Get cluster configuration based on size
+	config := getGCPClusterConfig(clusterSize, useSpot)
+	fmt.Printf("💡 Using %s cluster configuration to reduce costs and disk usage...\n", clusterSize)
+	fmt.Printf("📊 Nodes: %d, Disk: %s, Machine: %s\n", config.NumNodes, config.DiskSize, config.MachineType)
+
+	// Create GKE cluster with size-specific configuration
+	args := []string{
+		"container", "clusters", "create", clusterName,
 		"--region", region,
-		"--num-nodes", "2",
-		"--machine-type", "e2-medium",
+		"--num-nodes", fmt.Sprintf("%d", config.NumNodes),
+		"--machine-type", config.MachineType,
+		"--disk-size", config.DiskSize,
+		"--disk-type", config.DiskType,
 		"--enable-autoscaling",
-		"--min-nodes", "1",
-		"--max-nodes", "3",
+		"--min-nodes", fmt.Sprintf("%d", config.MinNodes),
+		"--max-nodes", fmt.Sprintf("%d", config.MaxNodes),
 		"--enable-autorepair",
-		"--enable-autoupgrade")
+		"--enable-autoupgrade",
+		"--no-enable-ip-alias", // Disable VPC-native to reduce complexity
+	}
+
+	// Add spot instance configuration if requested
+	if useSpot {
+		args = append(args, "--preemptible")
+	}
+
+	cmd := exec.Command("gcloud", args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -205,8 +276,13 @@ func deployGCPLab(region, clusterName string) error {
 }
 
 // deployAzureLab creates AKS cluster and deploys lab
-func deployAzureLab(region, clusterName string) error {
+func deployAzureLab(region, clusterName, clusterSize string, useSpot bool) error {
 	fmt.Println("📦 Creating AKS cluster...")
+
+	// Get cluster configuration based on size
+	config := getAzureClusterConfig(clusterSize, useSpot)
+	fmt.Printf("💡 Using %s cluster configuration to reduce costs and disk usage...\n", clusterSize)
+	fmt.Printf("📊 Nodes: %d, Instance: %s\n", config.NumNodes, config.MachineType)
 
 	// Create resource group
 	resourceGroup := clusterName + "-rg"
@@ -215,14 +291,23 @@ func deployAzureLab(region, clusterName string) error {
 		return fmt.Errorf("failed to create resource group: %w", err)
 	}
 
-	// Create AKS cluster
-	cmd = exec.Command("az", "aks", "create",
+	// Create AKS cluster with size-specific configuration
+	args := []string{
+		"aks", "create",
 		"--resource-group", resourceGroup,
 		"--name", clusterName,
-		"--node-count", "2",
-		"--node-vm-size", "Standard_B2s",
+		"--node-count", fmt.Sprintf("%d", config.NumNodes),
+		"--node-vm-size", config.MachineType,
 		"--enable-addons", "monitoring",
-		"--generate-ssh-keys")
+		"--generate-ssh-keys",
+	}
+
+	// Add spot instance configuration if requested
+	if useSpot {
+		args = append(args, "--enable-ultra-ssd")
+	}
+
+	cmd = exec.Command("az", args...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -329,7 +414,7 @@ func deployLabManifests() error {
 	labDir := "modules/lab/manifests"
 	yamlFiles := []string{
 		"01-namespace.yaml",
-		"02-rbac.yaml", 
+		"02-rbac.yaml",
 		"03-pods.yaml",
 		"04-services.yaml",
 		"05-secrets.yaml",
@@ -405,4 +490,87 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// getClusterConfig returns cluster configuration based on size and spot preferences
+func getClusterConfig(clusterSize string, _ bool) ClusterConfig {
+	switch clusterSize {
+	case "minimal":
+		return ClusterConfig{
+			NumNodes:    1,
+			MinNodes:    1,
+			MaxNodes:    2,
+			MachineType: "t3.micro", // Default to AWS, will be overridden per provider
+			DiskSize:    "20GB",
+			DiskType:    "gp2",
+		}
+	case "small":
+		return ClusterConfig{
+			NumNodes:    2,
+			MinNodes:    1,
+			MaxNodes:    3,
+			MachineType: "t3.small",
+			DiskSize:    "50GB",
+			DiskType:    "gp2",
+		}
+	case "medium":
+		return ClusterConfig{
+			NumNodes:    3,
+			MinNodes:    2,
+			MaxNodes:    5,
+			MachineType: "t3.medium",
+			DiskSize:    "100GB",
+			DiskType:    "gp2",
+		}
+	default:
+		// Default to minimal for unknown sizes
+		return ClusterConfig{
+			NumNodes:    1,
+			MinNodes:    1,
+			MaxNodes:    2,
+			MachineType: "t3.micro",
+			DiskSize:    "20GB",
+			DiskType:    "gp2",
+		}
+	}
+}
+
+// getGCPClusterConfig returns GCP-specific cluster configuration
+func getGCPClusterConfig(clusterSize string, useSpot bool) ClusterConfig {
+	config := getClusterConfig(clusterSize, useSpot)
+
+	// Override with GCP-specific values
+	switch clusterSize {
+	case "minimal":
+		config.MachineType = "e2-micro"
+		config.DiskType = "pd-standard"
+	case "small":
+		config.MachineType = "e2-small"
+		config.DiskType = "pd-standard"
+	case "medium":
+		config.MachineType = "e2-medium"
+		config.DiskType = "pd-standard"
+	}
+
+	return config
+}
+
+// getAzureClusterConfig returns Azure-specific cluster configuration
+func getAzureClusterConfig(clusterSize string, useSpot bool) ClusterConfig {
+	config := getClusterConfig(clusterSize, useSpot)
+
+	// Override with Azure-specific values
+	switch clusterSize {
+	case "minimal":
+		config.MachineType = "Standard_B1s" // Azure: B1s (1 vCPU, 1 GB RAM)
+		config.DiskType = "Premium_LRS"
+	case "small":
+		config.MachineType = "Standard_B2s" // Azure: B2s (2 vCPU, 4 GB RAM)
+		config.DiskType = "Premium_LRS"
+	case "medium":
+		config.MachineType = "Standard_B2ms" // Azure: B2ms (2 vCPU, 8 GB RAM)
+		config.DiskType = "Premium_LRS"
+	}
+
+	return config
 }
