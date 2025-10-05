@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/spf13/cobra v1.9.1
 	go.etcd.io/etcd/client/v3 v3.6.0
 	gopkg.in/yaml.v3 v3.0.1

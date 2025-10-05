@@ -39,6 +39,8 @@ var rootCmd = &cobra.Command{
 		if dashboardFlag {
 			if err := dashboard.StartDashboardIfRequested(dashboardFlag, dashboardPort); err != nil {
 				fmt.Printf("Failed to start dashboard: %v\n", err)
+			} else {
+				fmt.Printf("🚀 Enhanced Dashboard started with attack-map visualization\n")
 			}
 		}
 	},
