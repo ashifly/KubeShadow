@@ -58,36 +58,57 @@ KubeShadow is a powerful Kubernetes security testing and exploitation toolkit de
 # Install from source
 go get github.com/ashifly/KubeShadow
 
-# Build from source
+# Build from source (automatically handles CGO issues)
 git clone https://github.com/ashifly/KubeShadow
 cd KubeShadow
-go build -o kubeshadow
+make build
+```
+
+**Or use the automated build script:**
+```bash
+# One-command build (handles all dependencies automatically)
+./setup.sh
 ```
 
 ## 🛠️ Troubleshooting Build Issues
 
-If `go build` gets stuck or you encounter issues, try these steps:
+**Note:** The automated setup script (`./setup.sh`) and Makefile (`make build`) handle most build issues automatically. Only use manual troubleshooting if the automated methods fail.
 
-### 1. Clean and Rebuild with Verbose Output
+### Manual Build (if automated setup fails)
+
+**Quick Fix - Build without CGO:**
 ```bash
-# Clean everything
+# This works on most systems
+CGO_ENABLED=0 go build -o kubeshadow .
+chmod +x kubeshadow
+./kubeshadow help
+```
+
+**Full Manual Build:**
+```bash
+# Install dependencies
+sudo apt update && sudo apt install -y libsqlite3-dev build-essential
+
+# Clean and build
 go clean -modcache
 go mod tidy
-
-# Build with verbose output to see where it gets stuck
-go build -o kubeshadow -v .
+go build -o kubeshadow .
+chmod +x kubeshadow
+./kubeshadow help
 ```
 
-### 2. Alternative Build Methods
+### Advanced Troubleshooting
+
+**If you still get segmentation faults:**
 ```bash
-# Build without CGO (faster, if you don't need C-bindings)
-CGO_ENABLED=0 go build -o kubeshadow .
+# Try static build
+CGO_ENABLED=0 go build -ldflags="-s -w" -o kubeshadow .
 
-# Build with optimizations
-go build -ldflags="-s -w" -o kubeshadow .
+# Or use the Makefile
+make build-no-cgo
 ```
 
-### 3. Check Dependencies
+**Check your environment:**
 ```bash
 # Verify Go installation
 go version
