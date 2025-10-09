@@ -439,6 +439,8 @@ func deployLabManifests() error {
 		"19-supply-chain-attack.yaml",
 		"20-crypto-miner.yaml",
 		"21-dns-poisoning.yaml",
+		"22-cve-2025-1974-ingress-nginx-rce.yaml",
+		"23-cve-2025-5187-node-ownerreference.yaml",
 	}
 
 	for _, file := range yamlFiles {
