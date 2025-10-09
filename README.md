@@ -5,7 +5,7 @@ KubeShadow is a comprehensive Kubernetes security testing and exploitation toolk
 ## 🎯 Key Features
 
 ### Core Capabilities
-- **Metasploit-Style Framework**: Comprehensive exploitation framework with payloads, exploits, persistence, and post-exploitation modules
+- **Red-Team Framework**: Comprehensive exploitation framework with payloads, exploits, persistence, and post-exploitation modules
 - **OWASP Top 10 for Kubernetes**: Complete coverage of Kubernetes security risks with automated detection and remediation
 - **Interactive Dashboard**: Real-time attack map visualization with WebSocket updates and graph analysis
 - **Lab Environment**: Automated vulnerable Kubernetes lab deployment (AWS, GCP, Azure, Minikube, Kind)
