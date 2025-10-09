@@ -687,36 +687,200 @@ kubeshadow registry-backdoor --registry-url https://registry.example.com --image
 
 ```
 KubeShadow/
-├── modules/                 # Core exploitation modules
-│   ├── cluster_exploit/    # Cluster exploitation tools
-│   ├── multi_cloud/        # Cloud provider exploitation
-│   ├── out_cluster/        # External infrastructure attacks
-│   ├── recon/             # Reconnaissance tools
-│   └── stealth/           # Stealth operation tools
-├── pkg/                    # Supporting packages
-│   ├── banner/            # CLI banner utilities
-│   ├── config/            # Configuration management
-│   ├── errors/            # Error handling
-│   ├── etcd/              # ETCD client utilities
-│   ├── k8s/               # Kubernetes client utilities
-│   ├── kubelet/           # Kubelet API utilities
-│   ├── logger/            # Logging utilities
-│   ├── modules/           # Module interfaces
-│   ├── plugins/           # Plugin system
-│   ├── recon/             # Reconnaissance utilities
-│   ├── registry/          # Module registry
-│   ├── testutil/          # Testing utilities
-│   ├── types/             # Common types
-│   └── utils/             # General utilities
-├── docs/                  # Documentation
-│   ├── modules/          # Module-specific documentation
-│   └── architecture.md   # Architecture overview
-├── examples/             # Usage examples
-│   └── sidecar-config.json  # Example configurations
-├── resources/           # Resource files
-│   ├── configs/        # Configuration templates
-│   └── templates/      # Template files
-└── .github/            # GitHub workflows and templates
+├── modules/                          # Core exploitation modules
+│   ├── cluster_exploit/             # Cluster exploitation tools
+│   │   ├── etcd_inject.go           # ETCD injection attacks
+│   │   ├── kubelet_hijack.go        # Kubelet API exploitation
+│   │   ├── namespace_pivot.go       # Cross-namespace access
+│   │   ├── rbac_escalate.go         # RBAC privilege escalation
+│   │   └── sidecar_inject.go        # Malicious sidecar injection
+│   ├── dashboard/                   # Interactive dashboard
+│   │   └── dashboard_cmd.go        # Dashboard command interface
+│   ├── data_exfil/                  # Data exfiltration tools
+│   │   └── data_exfil.go            # Secure data collection
+│   ├── demo/                        # Demonstration modules
+│   │   └── demo.go                  # Demo functionality
+│   ├── exploitation/                # Metasploit-style framework
+│   │   ├── cloud_exploits_cmd.go    # Cloud-specific exploits
+│   │   ├── ephemeral_cmd.go         # Ephemeral container injection
+│   │   ├── evasion_cmd.go           # Evasion techniques
+│   │   ├── exploitation_cmd.go      # Main exploitation command
+│   │   ├── exploitation.go          # Core exploitation logic
+│   │   ├── exploits_cmd.go          # Exploit execution
+│   │   ├── init_container_cmd.go    # Init container injection
+│   │   ├── injected-pod.yaml        # Sidecar injection template
+│   │   ├── k8s_utils.go             # Kubernetes utilities
+│   │   ├── malicious-sidecar.json  # Malicious sidecar config
+│   │   ├── payloads_cmd.go          # Payload generation
+│   │   ├── persistence_cmd.go       # Persistence mechanisms
+│   │   ├── post_ex_cmd.go           # Post-exploitation
+│   │   └── README.md                # Exploitation module docs
+│   ├── lab/                         # Vulnerable lab environment
+│   │   ├── cleanup.go               # Lab cleanup utilities
+│   │   ├── docs/                    # Lab documentation
+│   │   │   ├── comprehensive-verification-report.md
+│   │   │   ├── ephemeral-container-attacks.md
+│   │   │   ├── kubernetes-goat-scenarios.md
+│   │   │   └── lab-exercises-comprehensive.md
+│   │   ├── lab.go                   # Lab deployment logic
+│   │   ├── manifests/               # Vulnerable YAML manifests
+│   │   │   ├── 01-namespace.yaml    # Namespace configurations
+│   │   │   ├── 02-rbac.yaml         # RBAC misconfigurations
+│   │   │   ├── 03-pods.yaml         # Vulnerable pod definitions
+│   │   │   ├── 04-services.yaml     # Service configurations
+│   │   │   ├── 05-secrets.yaml      # Secret management issues
+│   │   │   ├── 06-configmaps.yaml   # ConfigMap vulnerabilities
+│   │   │   ├── 07-network-policies.yaml # Network policy gaps
+│   │   │   ├── 08-persistent-volumes.yaml # Volume vulnerabilities
+│   │   │   ├── 09-ephemeral-containers.yaml # Ephemeral container attacks
+│   │   │   ├── 10-secure-ephemeral.yaml # Secure ephemeral examples
+│   │   │   ├── 11-ephemeral-attack-scenarios.yaml # Attack scenarios
+│   │   │   ├── 12-advanced-vulnerabilities.yaml # Advanced vulns
+│   │   │   ├── 13-chroot-escape.yaml # Chroot escape scenarios
+│   │   │   ├── 14-secure-chroot.yaml # Secure chroot examples
+│   │   │   ├── 15-highly-vulnerable.yaml # Critical vulnerabilities
+│   │   │   ├── 16-owasp-comprehensive.yaml # OWASP Top 10 scenarios
+│   │   │   ├── 17-ssrf-vulnerability.yaml # SSRF attack scenarios
+│   │   │   ├── 18-container-escape.yaml # Container escape techniques
+│   │   │   ├── 19-supply-chain-attack.yaml # Supply chain attacks
+│   │   │   ├── 20-crypto-miner.yaml # Crypto mining attacks
+│   │   │   └── 21-dns-poisoning.yaml # DNS poisoning scenarios
+│   │   ├── MANIFESTS.md              # Manifest documentation
+│   │   ├── OWASP_LAB_ANALYSIS.md     # OWASP analysis
+│   │   └── README.md                 # Lab module documentation
+│   ├── multi_cloud/                 # Multi-cloud exploitation
+│   │   ├── assume_role_abuse.go      # Cloud role assumption
+│   │   ├── cloud_elevator.go        # Cloud privilege escalation
+│   │   └── metadata_hijack.go        # Cloud metadata exploitation
+│   ├── out_cluster/                 # External infrastructure attacks
+│   │   └── registry_backdoor.go     # Container registry attacks
+│   ├── owasp_top10/                 # OWASP Top 10 for Kubernetes
+│   │   ├── k01_insecure_workload_configs/ # Insecure workload configs
+│   │   ├── k02_supply_chain/        # Supply chain vulnerabilities
+│   │   ├── k03_rbac/                # RBAC misconfigurations
+│   │   ├── k04_policy/              # Policy enforcement gaps
+│   │   ├── k05_telemetry/            # Inadequate logging
+│   │   ├── k06_auth/                # Broken authentication
+│   │   ├── k07_network/             # Missing network segmentation
+│   │   ├── k08_secrets/             # Secrets management failures
+│   │   ├── k09_components/          # Misconfigured components
+│   │   ├── k10_vulnerabilities/     # Outdated components
+│   │   ├── owasp_cmd.go             # OWASP command interface
+│   │   └── README.md                # OWASP module documentation
+│   ├── recon/                       # Reconnaissance tools
+│   │   └── recon.go                 # Core reconnaissance logic
+│   └── stealth/                     # Stealth operation tools
+│       ├── audit_bypass.go          # Audit policy bypass
+│       ├── cleanup.go               # Evidence cleanup
+│       └── dns_poison.go             # DNS cache poisoning
+├── pkg/                             # Supporting packages
+│   ├── banner/                      # CLI banner utilities
+│   │   └── banner.go                # Banner display logic
+│   ├── config/                      # Configuration management
+│   │   ├── config.go                # Configuration handling
+│   │   └── config_test.go           # Configuration tests
+│   ├── dashboard/                   # Dashboard functionality
+│   │   ├── api.go                   # REST API endpoints
+│   │   ├── dashboard.go             # Dashboard core logic
+│   │   ├── export.go                # Data export functionality
+│   │   ├── frontend.go              # Frontend integration
+│   │   ├── graph_builder.go         # Attack graph construction
+│   │   ├── graph_types.go           # Graph data types
+│   │   ├── module_publisher.go      # Module event publishing
+│   │   ├── publisher.go             # Event publishing
+│   │   ├── storage.go               # Data storage
+│   │   ├── types.go                 # Dashboard types
+│   │   └── websocket.go             # WebSocket communication
+│   ├── errors/                      # Error handling
+│   │   ├── errors.go                # Error definitions
+│   │   └── test.go                  # Error tests
+│   ├── etcd/                        # ETCD client utilities
+│   │   └── client.go                # ETCD client implementation
+│   ├── exfiltration/                # Data exfiltration utilities
+│   │   ├── collector.go             # Data collection
+│   │   ├── uploader.go              # Data upload
+│   │   └── utils.go                 # Exfiltration utilities
+│   ├── k8s/                         # Kubernetes client utilities
+│   │   └── client.go                # K8s client implementation
+│   ├── kubelet/                     # Kubelet API utilities
+│   │   └── client.go                # Kubelet client
+│   ├── logger/                      # Logging utilities
+│   │   ├── logger.go                # Logger implementation
+│   │   └── logger_test.go           # Logger tests
+│   ├── modules/                     # Module interfaces
+│   │   ├── base/                    # Base module types
+│   │   ├── registry/                # Module registry
+│   │   └── sidecar/                 # Sidecar module types
+│   ├── plugins/                     # Plugin system
+│   │   └── metrics/                 # Metrics plugins
+│   ├── recon/                       # Reconnaissance utilities
+│   │   ├── cloud.go                 # Cloud reconnaissance
+│   │   ├── comprehensive_scan.go    # Comprehensive scanning
+│   │   ├── container.go            # Container analysis
+│   │   ├── k8s.go                  # Kubernetes reconnaissance
+│   │   ├── kubernetes.go            # K8s-specific recon
+│   │   ├── network.go               # Network reconnaissance
+│   │   ├── process.go               # Process analysis
+│   │   ├── recon.go                 # Core reconnaissance
+│   │   ├── system.go                # System reconnaissance
+│   │   ├── volume.go                # Volume analysis
+│   │   └── vulnerabilities.go       # Vulnerability detection
+│   ├── recon_graph/                 # Attack graph analysis
+│   │   ├── chaining_engine.go       # Attack chaining
+│   │   ├── owasp_integration.go     # OWASP integration
+│   │   ├── recon_graph_cmd.go       # Graph command interface
+│   │   ├── types.go                 # Graph types
+│   │   └── visualization.go        # Graph visualization
+│   ├── registry/                    # Module registry
+│   │   ├── plugin_registry.go       # Plugin registry
+│   │   ├── plugin_registry_test.go  # Registry tests
+│   │   ├── registry.go              # Core registry
+│   │   ├── registry_bench_test.go   # Registry benchmarks
+│   │   └── registry_test.go         # Registry tests
+│   ├── testutil/                    # Testing utilities
+│   │   └── testutil.go              # Test utilities
+│   ├── types/                       # Common types
+│   │   ├── module.go                # Module types
+│   │   └── plugin.go                # Plugin types
+│   └── utils/                       # General utilities
+│       └── common.go                # Common utilities
+├── docs/                            # Documentation
+│   ├── architecture.md              # Architecture overview
+│   ├── audit.md                     # Audit documentation
+│   ├── cloudattacks.md              # Cloud attack documentation
+│   ├── data-exfiltration.md         # Data exfiltration docs
+│   ├── dns.md                       # DNS attack documentation
+│   ├── kubeletjack.md               # Kubelet exploitation docs
+│   ├── lab.md                       # Lab environment docs
+│   ├── modules/                     # Module-specific documentation
+│   │   ├── recon/                   # Reconnaissance docs
+│   │   └── sidecar.md               # Sidecar injection docs
+│   ├── namespace.md                 # Namespace documentation
+│   ├── quickstart.md                # Quick start guide
+│   ├── rbac.md                      # RBAC documentation
+│   ├── recon.md                     # Reconnaissance docs
+│   ├── sidecarinject.md             # Sidecar injection docs
+│   └── troubleshooting.md           # Troubleshooting guide
+├── examples/                         # Usage examples
+│   ├── lab-usage.md                 # Lab usage examples
+│   └── sidecar-config.json          # Sidecar configuration example
+├── resources/                        # Resource files
+│   ├── configs/                     # Configuration templates
+│   │   └── sidecar_config.json      # Sidecar configuration
+│   └── templates/                   # Template files
+│       ├── pod_template.json        # Pod templates
+│       └── sidecar_template.json    # Sidecar templates
+├── scripts/                         # Build and deployment scripts
+├── main.go                          # Main application entry point
+├── go.mod                           # Go module definition
+├── go.sum                           # Go module checksums
+├── Makefile                         # Build automation
+├── Dockerfile                       # Container image definition
+├── setup.sh                         # Setup script
+├── README.md                        # Project documentation
+├── CHANGELOG.md                     # Version changelog
+├── CONTRIBUTING.md                  # Contribution guidelines
+└── logo.png                         # Project logo
 ```
 
 ## Documentation
