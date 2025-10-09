@@ -1,11 +1,11 @@
 # KubeShadow
 
-KubeShadow is a comprehensive Kubernetes security testing and exploitation toolkit designed for red team operations, security assessments, and penetration testing. It provides a Metasploit-style framework with modular architecture for testing cluster security, identifying misconfigurations, and validating security controls.
+KubeShadow is a comprehensive Kubernetes security testing and exploitation toolkit designed for red team operations, security assessments, and penetration testing. It provides a Red-Team framework with modular architecture for testing cluster security, identifying misconfigurations, and validating security controls.
 
 ## 🎯 Key Features
 
 ### Core Capabilities
-- **Metasploit-Style Framework**: Comprehensive exploitation framework with payloads, exploits, persistence, and post-exploitation modules
+- **Red-Team Framework**: Comprehensive exploitation framework with payloads, exploits, persistence, and post-exploitation modules
 - **OWASP Top 10 for Kubernetes**: Complete coverage of Kubernetes security risks with automated detection and remediation
 - **Interactive Dashboard**: Real-time attack map visualization with WebSocket updates and graph analysis
 - **Lab Environment**: Automated vulnerable Kubernetes lab deployment (AWS, GCP, Azure, Minikube, Kind)
@@ -18,7 +18,7 @@ KubeShadow is a comprehensive Kubernetes security testing and exploitation toolk
 
 ### Module Categories
 
-#### 2. Reconnaissance (`modules/recon/`)
+#### 1. Reconnaissance (`modules/recon/`)
 - **Comprehensive Cluster Analysis**: Detailed Kubernetes environment assessment
   - RBAC analysis and privilege mapping
   - Network policy enumeration
@@ -27,7 +27,7 @@ KubeShadow is a comprehensive Kubernetes security testing and exploitation toolk
   - Node information gathering
   - Cloud metadata analysis
 
-#### 3. OWASP Top 10 for Kubernetes (`modules/owasp_top10/`)
+#### 2. OWASP Top 10 for Kubernetes (`modules/owasp_top10/`)
 - **K01 - Insecure Workload Configurations**: Detect dangerous security contexts
 - **K02 - Supply Chain Vulnerabilities**: Identify risky images and registries
 - **K03 - Overly Permissive RBAC**: Find escalation chains and risky bindings
@@ -39,7 +39,7 @@ KubeShadow is a comprehensive Kubernetes security testing and exploitation toolk
 - **K09 - Misconfigured Components**: Detect webhook and controller issues
 - **K10 - Outdated Components**: Identify vulnerable Kubernetes versions
 
-#### 4. Exploitation Framework (`modules/exploitation/`)
+#### 3. Exploitation Framework (`modules/exploitation/`)
 - **Payloads**: Generate and inject malicious payloads
   - Reverse shells (bash, python, perl, php, nc)
   - Web shells (PHP, JSP, ASP, Node.js)
@@ -72,25 +72,25 @@ KubeShadow is a comprehensive Kubernetes security testing and exploitation toolk
   - GCP GKE exploitation
   - Multi-cloud pivoting
 
-#### 5. Cluster Exploitation (`modules/cluster_exploit/`)
+#### 4. Cluster Exploitation (`modules/cluster_exploit/`)
 - **ETCD Injection**: Direct pod injection via etcd
 - **Kubelet Exploitation**: Kubelet API exploitation and hijacking
 - **Sidecar Injection**: Pod sidecar container injection
 - **RBAC Escalation**: RBAC privilege escalation and permission analysis
 - **Namespace Pivot**: Cross-namespace access and privilege movement
 
-#### 6. Cloud Exploitation (`modules/multi_cloud/`)
+#### 5. Cloud Exploitation (`modules/multi_cloud/`)
 - **Metadata Hijacking**: Cloud metadata service exploitation
 - **Cloud Privilege Escalation**: Cloud IAM privilege escalation
 - **Assume Role Abuse**: Cloud role assumption and token abuse
 - **Cloud Elevator**: Automated cloud privilege escalation paths
 
-#### 7. Stealth Operations (`modules/stealth/`)
+#### 6. Stealth Operations (`modules/stealth/`)
 - **Audit Bypass**: Audit policy bypass testing and analysis
 - **DNS Cache Poisoning**: DNS cache poisoning and spoofing attacks
 - **Cleanup Operations**: Evidence removal and operation cleanup
 
-#### 8. Data Exfiltration (`modules/data_exfil/`)
+#### 7. Data Exfiltration (`modules/data_exfil/`)
 - **Secure Data Collection**: Collect and exfiltrate sensitive data
 - **Cloud Storage Integration**: Upload to AWS S3, GCP Storage, Azure Blob
 - **Presigned URL Support**: Secure data transfer without credentials
@@ -204,30 +204,6 @@ KubeShadow follows a logical penetration testing workflow:
 - `dns-poison` - DNS cache poisoning
 - `cleanup` - Evidence removal
 
-## 🌟 New Features
-
-### Interactive Dashboard
-- **Real-time Attack Map**: Visualize attack chains and relationships
-- **WebSocket Updates**: Live command results and graph updates
-- **Export Capabilities**: Download results as CSV, PDF, or graph formats
-- **Port Auto-Detection**: Automatically finds available ports
-
-### OWASP Top 10 Integration
-- **Automated Detection**: Scan for all OWASP Top 10 Kubernetes risks
-- **Risk Scoring**: CVSS-style severity assessment
-- **Remediation Guidance**: OPA/Gatekeeper policy suggestions
-- **Lab Integration**: Test scenarios in controlled environments
-
-### Exploitation Framework
-- **Metasploit-Style**: Familiar interface for penetration testers
-- **Payload Generation**: Multiple payload types and encoding options
-- **Persistence Mechanisms**: Various persistence techniques
-- **Cloud Exploitation**: Platform-specific attack modules
-
-### Lab Environment
-- **Multi-Cloud Support**: AWS, GCP, Azure, Minikube, Kind
-- **Vulnerable Workloads**: Pre-configured attack scenarios
-- **OWASP Scenarios**: Complete Top 10 vulnerability coverage
 - **Ephemeral Containers**: Advanced attack demonstrations
 
 ## 🛠️ Build Troubleshooting
@@ -261,111 +237,64 @@ go version
 go mod download
 ```
 
-## 🚀 Quick Start - Complete Workflow
-
-### Step 1: Set Up Lab Environment
-```bash
-# Create vulnerable lab for testing
-./kubeshadow lab --provider minikube --dashboard
-
-# Or deploy to cloud
-./kubeshadow lab --provider aws --dashboard
-```
-
-### Step 2: Reconnaissance
-```bash
-# Discover cluster vulnerabilities
-./kubeshadow recon --dashboard
-
-# Stealth reconnaissance
-./kubeshadow recon --stealth --dashboard
-```
-
-### Step 3: Exploitation
-```bash
-# RBAC privilege escalation
-./kubeshadow rbac-escalate --dashboard
-
-# Sidecar injection
-./kubeshadow sidecar-inject --dashboard
-
-# Kubelet exploitation
-./kubeshadow kubelet-jack --dashboard
-```
-
-### Step 4: Post-Exploitation
-```bash
-# Data exfiltration
-./kubeshadow data-exfil --presigned-url "YOUR_URL" --dashboard
-
-# Cleanup traces
-./kubeshadow cleanup --dashboard
-```
-
-### Step 5: Clean Up Lab
-```bash
-# Remove lab resources
-./kubeshadow lab cleanup
-```
-
-## 📋 Command Reference (Organized by Workflow)
+## 📋 Command Reference (Workflow)
 
 ### 🔍 1. Reconnaissance Commands
 ```bash
 # Basic cluster reconnaissance
-./kubeshadow recon --dashboard
+./kubeshadow recon 
 
 # Stealth reconnaissance (minimal API calls)
-./kubeshadow recon --stealth --dashboard
+./kubeshadow recon --stealth 
 
 # OWASP Top 10 security assessment
-./kubeshadow owasp --dashboard
+./kubeshadow owasp 
 ```
 
 ### ⚔️ 2. Exploitation Commands
 ```bash
 # RBAC privilege escalation
-./kubeshadow rbac-escalate --dashboard
+./kubeshadow rbac-escalate 
 
 # Sidecar container injection
-./kubeshadow sidecar-inject --dashboard
+./kubeshadow sidecar-inject 
 
 # Kubelet API exploitation
-./kubeshadow kubelet-jack --dashboard
+./kubeshadow kubelet-jack 
 
 # ETCD direct injection
-./kubeshadow etcd-inject --dashboard
+./kubeshadow etcd-inject
 
 # Namespace pivoting
-./kubeshadow namespace-pivot --dashboard
+./kubeshadow namespace-pivot 
 ```
 
 ### ☁️ 3. Cloud Exploitation Commands
 ```bash
 # Cloud metadata hijacking
-./kubeshadow metadata-hijack --dashboard
+./kubeshadow metadata-hijack 
 
 # Cloud privilege escalation
-./kubeshadow cloud-elevator --dashboard
+./kubeshadow cloud-elevator 
 
 # AWS role assumption abuse
-./kubeshadow assume-role-abuse --dashboard
+./kubeshadow assume-role-abuse 
 ```
 
 ### 🎯 4. Post-Exploitation Commands
 ```bash
 # Data exfiltration to cloud storage
-./kubeshadow data-exfil --presigned-url "YOUR_URL" --dashboard
+./kubeshadow data-exfil --presigned-url "YOUR_URL" 
 
 # Registry backdoor injection
-./kubeshadow registry-backdoor --dashboard
+./kubeshadow registry-backdoor 
 
 # Stealth operations
-./kubeshadow audit-bypass --dashboard
-./kubeshadow dns-cache-poison --dashboard
+./kubeshadow audit-bypass
+./kubeshadow dns-cache-poison
 
 # Cleanup traces
-./kubeshadow cleanup --dashboard
+./kubeshadow cleanup 
 ```
 
 ## 🧪 Lab Environment Setup
@@ -470,68 +399,6 @@ sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 ./kubeshadow lab cleanup --provider aws --confirm
 ```
 
-### Lab Features
-
-The lab environment includes:
-- **Intentionally vulnerable configurations** for realistic testing
-- **Multiple attack scenarios** across different skill levels
-- **Dashboard integration** for real-time monitoring and visualization
-- **Automated cleanup** to prevent resource waste
-- **Educational scenarios** with step-by-step guides
-
-### Learning Paths
-
-**Beginner Level:**
-```bash
-# 1. Deploy lab
-./kubeshadow lab --provider minikube --dashboard
-
-# 2. Basic reconnaissance
-./kubeshadow recon --dashboard
-
-# 3. Identify vulnerabilities
-./kubeshadow recon --namespace kubeshadow-lab --dashboard
-
-# 4. Clean up lab resources (keeps cluster)
-./kubeshadow lab cleanup
-```
-
-**Intermediate Level:**
-```bash
-# 1. Deploy to cloud
-./kubeshadow lab --provider aws --dashboard
-
-# 2. Advanced reconnaissance
-./kubeshadow recon --dashboard
-
-# 3. RBAC exploitation
-./kubeshadow rbac-escalate --dashboard
-
-# 4. Container escape testing
-./kubeshadow sidecar-inject --dashboard
-
-# 5. Clean up lab resources (keeps cluster)
-./kubeshadow lab cleanup
-```
-
-**Advanced Level:**
-```bash
-# 1. Multi-environment testing
-./kubeshadow lab --provider aws --dashboard
-./kubeshadow recon --dashboard
-./kubeshadow lab cleanup --provider aws --confirm  # Deletes entire cluster
-
-# 2. Advanced exploitation
-./kubeshadow rbac-escalate --dashboard
-./kubeshadow kubelet-jack --dashboard
-
-# 3. Stealth techniques
-./kubeshadow audit-bypass --dashboard
-./kubeshadow dns-cache-poison --dashboard
-
-# 4. Clean up lab resources (keeps cluster)
-./kubeshadow lab cleanup
-```
 
 ### Lab Vulnerabilities
 
