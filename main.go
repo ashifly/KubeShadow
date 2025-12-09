@@ -67,36 +67,36 @@ func init() {
 	// Add commands in logical workflow order with proper grouping
 
 	// 1. LAB SETUP (First - create environment)
-	rootCmd.AddCommand(lab.LabCmd)
+	rootCmd.AddCommand(dashboard.WrapCommand("lab", lab.LabCmd))
 	rootCmd.AddCommand(dashboard_cmd.DashboardCmd)
 
 	// 2. RECONNAISSANCE (Discover vulnerabilities)
-	rootCmd.AddCommand(recon.ReconCmd)
-	rootCmd.AddCommand(owasp_top10.OwaspCmd)
-	rootCmd.AddCommand(recon_graph.ReconGraphCmd)
+	rootCmd.AddCommand(dashboard.WrapCommand("recon", recon.ReconCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("owasp", owasp_top10.OwaspCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("recon-graph", recon_graph.ReconGraphCmd))
 
 	// 3. EXPLOITATION (Attack what you found)
-	rootCmd.AddCommand(exploitation.ExploitationCmd)
-	rootCmd.AddCommand(cluster_exploit.RBACEscalateCmd)
-	rootCmd.AddCommand(cluster_exploit.SidecarInjectCmd)
-	rootCmd.AddCommand(cluster_exploit.KubeletJackerCmd)
-	rootCmd.AddCommand(cluster_exploit.EtcdInjectCmd)
-	rootCmd.AddCommand(cluster_exploit.NamespacePivotCmd)
+	rootCmd.AddCommand(dashboard.WrapCommand("exploitation", exploitation.ExploitationCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("rbac-escalate", cluster_exploit.RBACEscalateCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("sidecar-inject", cluster_exploit.SidecarInjectCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("kubelet-jack", cluster_exploit.KubeletJackerCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("etcd-inject", cluster_exploit.EtcdInjectCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("namespace-pivot", cluster_exploit.NamespacePivotCmd))
 
 	// 4. CLOUD EXPLOITATION (Cloud-specific attacks)
-	rootCmd.AddCommand(multi_cloud.MetadataHijackCmd)
-	rootCmd.AddCommand(multi_cloud.CloudElevatorCmd)
-	rootCmd.AddCommand(multi_cloud.AssumeRoleAbuseCmd)
+	rootCmd.AddCommand(dashboard.WrapCommand("metadata-hijack", multi_cloud.MetadataHijackCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("cloud-elevator", multi_cloud.CloudElevatorCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("assume-role-abuse", multi_cloud.AssumeRoleAbuseCmd))
 
 	// 5. POST-EXPLOITATION (Persistence, data exfil, cleanup)
-	rootCmd.AddCommand(data_exfil.DataExfilCmd)
-	rootCmd.AddCommand(out_cluster.RegistryBackdoorCmd)
-	rootCmd.AddCommand(stealth.AuditBypassCmd)
-	rootCmd.AddCommand(stealth.DNSCachePoisonCmd)
-	rootCmd.AddCommand(stealth.CleanupCmd)
+	rootCmd.AddCommand(dashboard.WrapCommand("data-exfil", data_exfil.DataExfilCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("registry-backdoor", out_cluster.RegistryBackdoorCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("audit-bypass", stealth.AuditBypassCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("dns-cache-poison", stealth.DNSCachePoisonCmd))
+	rootCmd.AddCommand(dashboard.WrapCommand("cleanup", stealth.CleanupCmd))
 
 	// 6. UTILITIES (Demo and other tools)
-	rootCmd.AddCommand(demo.DemoCmd)
+	rootCmd.AddCommand(dashboard.WrapCommand("demo", demo.DemoCmd))
 
 	// Override the help command to show logical order
 	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {

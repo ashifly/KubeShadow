@@ -97,13 +97,6 @@ spec:
     runAsUser: 0  # VULNERABLE: Running as root
     runAsGroup: 0
     runAsNonRoot: false  # VULNERABLE: Not running as non-root
-    allowPrivilegeEscalation: true  # VULNERABLE: Privilege escalation allowed
-    privileged: true  # VULNERABLE: Privileged container
-    capabilities:
-      add:
-      - ALL  # VULNERABLE: All capabilities
-      drop: []
-    readOnlyRootFilesystem: false  # VULNERABLE: Writable root filesystem
   containers:
   - name: privileged-container
     image: alpine:latest

@@ -417,7 +417,7 @@ metadata:
 type: Opaque
 data:
   root-password: dG9vcg==  # base64: toor
-  ssh-key: c3NoLXJzYSBBQUFBQkNOemFDMXljMkVBQUFEQVFBQUFBZ0FDN0...  # base64: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7...
+  ssh-key: c3NoLXJzYSBBQUFBQkNOemFDMXljMkVBQUFEQVFBQUFBZ0FDNzlhYzEyMzQ1Njc4OTBhYmNkZWY=  # base64: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC79ac1234567890abcdef
   api-token: c2stMTIzNDU2Nzg5MGFiY2RlZg==  # base64: sk-1234567890abcdef
   db-credentials: YWRtaW4xMjM=  # base64: admin123
 ---

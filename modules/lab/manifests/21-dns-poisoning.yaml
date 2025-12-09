@@ -350,11 +350,13 @@ spec:
   selector:
     app: malicious-dns-server
   ports:
-  - port: 53
+  - name: dns-udp
+    port: 53
     targetPort: 53
     nodePort: 30086
     protocol: UDP
-  - port: 53
+  - name: dns-tcp
+    port: 53
     targetPort: 53
     nodePort: 30087
     protocol: TCP

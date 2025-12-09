@@ -222,7 +222,7 @@ metadata:
 type: Opaque
 data:
   # base64 encoded secrets
-  api-server-cert: LS0tLS1CRUdJTi...  # Simulated API server certificate
+  api-server-cert: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t  # Simulated API server certificate (base64: -----BEGIN CERTIFICATE-----)
   etcd-key: c2ltdWxhdGVkLWV0Y2Qta2V5  # base64: simulated-etcd-key
   admin-token: c2ltdWxhdGVkLWFkbWluLXRva2Vu  # base64: simulated-admin-token
   bootstrap-token: c2ltdWxhdGVkLWJvb3RzdHJhcC10b2tlbi14eXoxMjM=  # base64: simulated-bootstrap-token-xyz123
@@ -346,12 +346,15 @@ spec:
   - {}  # VULNERABLE: Allows all egress (including Azure WireServer access)
 ---
 # VULNERABLE: Pod Security Policy that should restrict but doesn't
-# Note: PodSecurityPolicy is deprecated but shown for educational purposes
-apiVersion: policy/v1beta1
-kind: PodSecurityPolicy
-metadata:
-  name: permissive-tls-bootstrap
-spec:
+# Note: PodSecurityPolicy is deprecated in Kubernetes 1.21+ and removed in 1.25+
+# This is commented out as it will fail on modern clusters
+# Use Pod Security Standards instead (configured via namespace labels)
+# ---
+# apiVersion: policy/v1beta1
+# kind: PodSecurityPolicy
+# metadata:
+#   name: permissive-tls-bootstrap
+# spec:
   privileged: true  # VULNERABLE: Allows privileged containers
   hostNetwork: true  # VULNERABLE: Allows host network access
   hostIPC: true

@@ -179,9 +179,10 @@ metadata:
 spec:
   type: NodePort                    # K07: Exposed service
   ports:
-  - port: 80
+  - name: http
+    port: 80
     targetPort: 8080
-    nodePort: 30080
+    nodePort: 30090
   selector:
     app: insecure-workloads
 ---
@@ -240,6 +241,8 @@ webhooks:
     apiVersions: ["*"]
     resources: ["*"]                  # K09: Overly broad resources
   failurePolicy: Ignore              # K09: Ignore failures
+  sideEffects: None
+  admissionReviewVersions: ["v1"]
 ---
 # K10 - Outdated and Vulnerable Components
 apiVersion: apps/v1
@@ -282,10 +285,6 @@ spec:
     runAsUser: 0                      # K01: Root user
     runAsGroup: 0
     runAsNonRoot: false
-    allowPrivilegeEscalation: true
-    privileged: true
-    capabilities:
-      add: ["ALL"]                   # K01: All capabilities
   initContainers:
   - name: malicious-init
     image: alpine:latest

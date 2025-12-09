@@ -127,13 +127,6 @@ spec:
     runAsUser: 0  # VULNERABLE: Running as root
     runAsGroup: 0
     runAsNonRoot: false  # VULNERABLE: Not running as non-root
-    allowPrivilegeEscalation: true  # VULNERABLE: Privilege escalation allowed
-    privileged: true  # VULNERABLE: Privileged container
-    capabilities:
-      add:
-      - ALL  # VULNERABLE: All capabilities
-      drop: []
-    readOnlyRootFilesystem: false  # VULNERABLE: Writable root filesystem
     seLinuxOptions:
       level: "s0:c123,c456"  # VULNERABLE: Custom SELinux context
   initContainers:
@@ -441,13 +434,6 @@ spec:
     runAsUser: 0
     runAsGroup: 0
     runAsNonRoot: false
-    allowPrivilegeEscalation: true
-    privileged: true
-    capabilities:
-      add:
-      - ALL
-      drop: []
-    readOnlyRootFilesystem: false
   containers:
   - name: bypass-container
     image: alpine:latest
@@ -485,11 +471,13 @@ metadata:
 spec:
   type: NodePort  # VULNERABLE: NodePort exposure
   ports:
-  - port: 8080
+  - name: http
+    port: 8080
     targetPort: 8080
     nodePort: 30089
     protocol: TCP
-  - port: 8443
+  - name: https
+    port: 8443
     targetPort: 8443
     nodePort: 30090
     protocol: TCP
@@ -507,7 +495,8 @@ metadata:
 spec:
   type: LoadBalancer  # VULNERABLE: LoadBalancer exposure
   ports:
-  - port: 80
+  - name: http
+    port: 80
     targetPort: 80
     protocol: TCP
   selector:

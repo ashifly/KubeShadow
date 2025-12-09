@@ -84,6 +84,8 @@ spec:
       runAsNonRoot: true
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
+      seccompProfile:
+        type: RuntimeDefault
       capabilities:
         drop:
         - ALL
@@ -135,6 +137,8 @@ spec:
       runAsNonRoot: true
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: false
+      seccompProfile:
+        type: RuntimeDefault
       capabilities:
         drop:
         - ALL
@@ -194,10 +198,15 @@ spec:
     - protocol: TCP
       port: 5432
 ---
-# SECURE: Pod Security Policy (if supported)
-metadata:
-  name: secure-ephemeral-psp
-spec:
+# SECURE: Pod Security Policy (deprecated, commented out)
+# Note: PodSecurityPolicy is deprecated in Kubernetes 1.21+ and removed in 1.25+
+# Use Pod Security Standards instead (already configured via namespace labels)
+# ---
+# apiVersion: policy/v1beta1
+# kind: PodSecurityPolicy
+# metadata:
+#   name: secure-ephemeral-psp
+# spec:
   privileged: false
   allowPrivilegeEscalation: false
   requiredDropCapabilities:

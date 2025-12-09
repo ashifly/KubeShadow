@@ -137,8 +137,14 @@ func (d *Dashboard) Start(port int) error {
 	}
 
 	d.enabled = true
+	
+	// Get all network IP addresses
+	ips := d.getNetworkIPs(port)
+	
 	log.Printf("🎯 Dashboard starting on http://localhost:%d", port)
-	log.Printf("🌐 Also accessible at: http://127.0.0.1:%d", port)
+	for _, ip := range ips {
+		log.Printf("🌐 Accessible at: http://%s:%d", ip, port)
+	}
 
 	go func() {
 		if err := d.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -149,6 +155,60 @@ func (d *Dashboard) Start(port int) error {
 	}()
 
 	return nil
+}
+
+// getNetworkIPs returns all non-loopback IP addresses for the machine
+func (d *Dashboard) getNetworkIPs(port int) []string {
+	var ips []string
+	
+	// Get all network interfaces
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ips
+	}
+	
+	for _, iface := range interfaces {
+		// Skip loopback and down interfaces
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			
+			// Only include IPv4 addresses
+			if ip.To4() != nil {
+				ips = append(ips, ip.String())
+			}
+		}
+	}
+	
+	// Remove duplicates
+	seen := make(map[string]bool)
+	var uniqueIPs []string
+	for _, ip := range ips {
+		if !seen[ip] {
+			seen[ip] = true
+			uniqueIPs = append(uniqueIPs, ip)
+		}
+	}
+	
+	return uniqueIPs
 }
 
 // Stop stops the dashboard web server

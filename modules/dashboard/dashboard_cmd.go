@@ -2,6 +2,7 @@ package dashboard_cmd
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,60 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+// getNetworkIPs returns all non-loopback IP addresses for the machine
+func getNetworkIPs() []string {
+	var ips []string
+	
+	// Get all network interfaces
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ips
+	}
+	
+	for _, iface := range interfaces {
+		// Skip loopback and down interfaces
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			
+			// Only include IPv4 addresses
+			if ip.To4() != nil {
+				ips = append(ips, ip.String())
+			}
+		}
+	}
+	
+	// Remove duplicates
+	seen := make(map[string]bool)
+	var uniqueIPs []string
+	for _, ip := range ips {
+		if !seen[ip] {
+			seen[ip] = true
+			uniqueIPs = append(uniqueIPs, ip)
+		}
+	}
+	
+	return uniqueIPs
+}
 
 var DashboardCmd = &cobra.Command{
 	Use:   "dashboard",
@@ -27,7 +82,15 @@ var DashboardCmd = &cobra.Command{
 			return fmt.Errorf("failed to start dashboard: %w", err)
 		}
 
+		// Get network IPs for display
+		ips := getNetworkIPs()
 		fmt.Printf("🎯 KubeShadow Dashboard started on http://localhost:%d\n", port)
+		if len(ips) > 0 {
+			fmt.Println("🌐 Accessible from network:")
+			for _, ip := range ips {
+				fmt.Printf("   http://%s:%d\n", ip, port)
+			}
+		}
 		fmt.Println("📊 Use the --dashboard flag with other commands to publish results here")
 		fmt.Println("Press Ctrl+C to stop the dashboard")
 

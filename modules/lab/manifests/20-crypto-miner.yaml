@@ -343,5 +343,5 @@ data:
     worker_name=kubeshadow-miner
     password=x
   mining.algorithm: sha256
-  mining.intensity: 100
+  mining.intensity: "100"
   security.level: high-risk

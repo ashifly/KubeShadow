@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // ModuleWrapper wraps any command to automatically publish results to dashboard
@@ -58,9 +61,47 @@ func WrapCommand(module string, cmd *cobra.Command) *cobra.Command {
 // runWithDashboard runs the command and publishes results to dashboard
 func (w *ModuleWrapper) runWithDashboard(cmd *cobra.Command, args []string, originalRunE func(*cobra.Command, []string) error) error {
 	startTime := time.Now()
+	
+	// Create publisher for this command execution
+	flags := extractFlags(cmd)
+	publisher := NewPublisher(w.module, cmd.Name(), args, flags)
+	publisher.Start()
 
-	// Simple approach: just run the command and capture any error
-	// Output will still go to stdout normally
+	// Capture stdout/stderr to get full output while still showing on CLI
+	var outputBuffer bytes.Buffer
+	var errorBuffer bytes.Buffer
+	
+	// Save original stdout/stderr
+	originalStdout := os.Stdout
+	originalStderr := os.Stderr
+	
+	// Create multi-writer: write to both original (CLI) and buffer (dashboard)
+	multiStdout := io.MultiWriter(originalStdout, &outputBuffer)
+	multiStderr := io.MultiWriter(originalStderr, &errorBuffer)
+	
+	// Wrap with writer that updates dashboard in real-time
+	stdoutWrapper := &writerWrapper{
+		Writer:    multiStdout,
+		buffer:    &outputBuffer,
+		publisher: publisher,
+	}
+	stderrWrapper := &writerWrapper{
+		Writer:    multiStderr,
+		buffer:    &errorBuffer,
+		publisher: publisher,
+	}
+	
+	// Temporarily replace stdout/stderr
+	os.Stdout = stdoutWrapper
+	os.Stderr = stderrWrapper
+	
+	// Restore on exit
+	defer func() {
+		os.Stdout = originalStdout
+		os.Stderr = originalStderr
+	}()
+
+	// Run the command
 	var err error
 	if originalRunE != nil {
 		err = originalRunE(cmd, args)
@@ -68,42 +109,62 @@ func (w *ModuleWrapper) runWithDashboard(cmd *cobra.Command, args []string, orig
 		err = w.runCommandDirectly(cmd, args)
 	}
 
-	endTime := time.Now()
-
-	// Create a proper CommandResult for the dashboard
-	result := CommandResult{
-		ID:        generateID(),
-		Command:   cmd.Name(),
-		Module:    w.module,
-		Arguments: args,
-		Flags:     make(map[string]interface{}),
-		Status:    "completed",
-		StartTime: startTime,
-		EndTime:   &endTime,
-		Duration:  endTime.Sub(startTime),
-		Output:    fmt.Sprintf("Command executed: %s", cmd.Name()),
-		ExitCode:  0,
-		Metadata:  make(map[string]interface{}),
+	// Collect final captured output
+	fullOutput := outputBuffer.String()
+	if errorBuffer.Len() > 0 {
+		fullOutput += "\n--- STDERR ---\n" + errorBuffer.String()
 	}
 
+	// Complete the publisher with full output
 	if err != nil {
-		result.Status = "error"
-		result.ErrorMsg = err.Error()
-		result.ExitCode = 1
+		publisher.Error(err.Error(), fullOutput, 1)
+	} else {
+		publisher.Complete(fullOutput, 0)
 	}
-
-	// Debug output (can be removed later)
-	fmt.Printf("✅ Published %s command to dashboard\n", result.Command)
-
-	// Try to publish to HTTP endpoint first (for existing dashboard instances)
-	if publishedViaHTTP := publishResultViaHTTP(result, 8080); publishedViaHTTP {
-		return err
-	}
-
-	// Fallback to local singleton instance
-	GetInstance().PublishResult(result)
 
 	return err
+}
+
+// writerWrapper wraps a writer to update dashboard in real-time
+type writerWrapper struct {
+	io.Writer
+	buffer    *bytes.Buffer
+	publisher *Publisher
+}
+
+func (w *writerWrapper) Write(p []byte) (n int, err error) {
+	n, err = w.Writer.Write(p) // Write to both CLI and buffer
+	if err == nil && w.publisher != nil {
+		// Update dashboard with current output in real-time
+		w.publisher.UpdateOutput(w.buffer.String())
+	}
+	return n, err
+}
+
+// extractFlags extracts flag values from a cobra command
+func extractFlags(cmd *cobra.Command) map[string]interface{} {
+	flags := make(map[string]interface{})
+	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		if flag.Changed {
+			switch flag.Value.Type() {
+			case "bool":
+				if val, err := cmd.Flags().GetBool(flag.Name); err == nil {
+					flags[flag.Name] = val
+				}
+			case "string":
+				if val, err := cmd.Flags().GetString(flag.Name); err == nil {
+					flags[flag.Name] = val
+				}
+			case "int":
+				if val, err := cmd.Flags().GetInt(flag.Name); err == nil {
+					flags[flag.Name] = val
+				}
+			default:
+				flags[flag.Name] = flag.Value.String()
+			}
+		}
+	})
+	return flags
 }
 
 // runCommandDirectly runs a command without RunE

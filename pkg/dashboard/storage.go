@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	_ "github.com/mattn/go-sqlite3"
 )
+
+// Import sqlite3 driver - will fail at runtime if CGO is disabled
+// This is handled gracefully in NewStorage
+import _ "github.com/mattn/go-sqlite3"
 
 // Storage manages persistent storage for dashboard data
 type Storage struct {
@@ -15,9 +17,16 @@ type Storage struct {
 }
 
 // NewStorage creates a new storage instance with SQLite database
+// Returns error if CGO is disabled (sqlite3 requires CGO)
 func NewStorage(dbPath string) (*Storage, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
+		// Check if it's a CGO error
+		errStr := err.Error()
+		if errStr == "Binary was compiled with 'CGO_ENABLED=0', go-sqlite3 requires cgo to work. This is a stub" ||
+			errStr == "sql: unknown driver \"sqlite3\" (forgotten import?)" {
+			return nil, fmt.Errorf("CGO is disabled: go-sqlite3 requires CGO. Build with CGO_ENABLED=1 or use in-memory mode")
+		}
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 

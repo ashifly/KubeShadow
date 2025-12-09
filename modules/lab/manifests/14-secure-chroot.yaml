@@ -85,6 +85,8 @@ spec:
       runAsNonRoot: true
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
+      seccompProfile:
+        type: RuntimeDefault
       capabilities:
         drop:
         - ALL
@@ -95,10 +97,15 @@ spec:
     emptyDir: {}
   restartPolicy: Always
 ---
-# SECURE: Pod Security Policy
-metadata:
-  name: secure-chroot-psp
-spec:
+# SECURE: Pod Security Policy (deprecated, commented out)
+# Note: PodSecurityPolicy is deprecated in Kubernetes 1.21+ and removed in 1.25+
+# Use Pod Security Standards instead (already configured via namespace labels)
+# ---
+# apiVersion: policy/v1beta1
+# kind: PodSecurityPolicy
+# metadata:
+#   name: secure-chroot-psp
+# spec:
   privileged: false
   allowPrivilegeEscalation: false
   requiredDropCapabilities:
