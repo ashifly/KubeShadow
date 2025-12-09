@@ -74,9 +74,20 @@ func cleanupLabManifests() error {
 
 	labDir := "modules/lab/manifests"
 	yamlFiles := []string{
+		"24-tls-bootstrap-azure.yaml",
+		"23-cve-2025-5187-node-ownerreference.yaml",
+		"22-cve-2025-1974-ingress-nginx-rce.yaml",
+		"21-dns-poisoning.yaml",
+		"20-crypto-miner.yaml",
+		"19-supply-chain-attack.yaml",
+		"18-container-escape.yaml",
+		"17-ssrf-vulnerability.yaml",
+		"16-owasp-comprehensive.yaml",
 		"15-highly-vulnerable.yaml",
 		"14-secure-chroot.yaml",
 		"13-chroot-escape.yaml",
+		"12-advanced-vulnerabilities.yaml",
+		"11-ephemeral-attack-scenarios.yaml",
 		"10-secure-ephemeral.yaml",
 		"09-ephemeral-containers.yaml",
 		"08-persistent-volumes.yaml",

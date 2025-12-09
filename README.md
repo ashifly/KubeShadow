@@ -112,14 +112,18 @@ KubeShadow is a comprehensive Kubernetes security testing and exploitation toolk
 # Clone and build with automatic dependency handling
 git clone https://github.com/ashifly/KubeShadow
 cd KubeShadow
-make build
+make build-cgo
 ```
 
 **Option 2: Manual Build**
 ```bash
-# Clean build without CGO (fastest and most reliable)
-CGO_ENABLED=0 go build -ldflags="-s -w" -o kubeshadow .
+# Build with CGO enabled (enables SQLite persistent storage for dashboard)
+CGO_ENABLED=1 go build -ldflags="-s -w" -o kubeshadow .
 chmod +x kubeshadow
+
+# Alternative: Build without CGO (faster, but dashboard uses in-memory storage)
+# CGO_ENABLED=0 go build -ldflags="-s -w" -o kubeshadow .
+# chmod +x kubeshadow
 ```
 
 ### Verify Installation
@@ -132,9 +136,9 @@ chmod +x kubeshadow
 ### 1. Lab Setup
 ```bash
 # Deploy vulnerable Kubernetes lab
-./kubeshadow lab create --provider aws --size small
-./kubeshadow lab create --provider gcp --size minimal
-./kubeshadow lab create --provider azure --size small
+./kubeshadow lab create --provider aws --cluster-size small
+./kubeshadow lab create --provider gcp --cluster-size minimal
+./kubeshadow lab create --provider azure --cluster-size small
 ./kubeshadow lab create --provider minikube
 ```
 

@@ -1,7 +1,7 @@
 # KubeShadow Makefile
 # Automatically handles CGO issues and builds for different environments
 
-.PHONY: build build-no-cgo clean install deps test help
+.PHONY: build build-cgo build-no-cgo clean install deps test help
 
 # Default target
 all: build
@@ -21,6 +21,24 @@ build:
 	@chmod +x kubeshadow
 	@echo "🎉 KubeShadow built successfully! (100%)"
 	@echo "💡 Run './kubeshadow help' to get started"
+
+# Build with CGO (enables SQLite persistent storage)
+build-cgo:
+	@echo "🔨 Building KubeShadow with CGO (SQLite support)..."
+	@echo "📦 Installing system dependencies if needed..."
+	@if command -v apt-get >/dev/null 2>&1; then \
+		sudo apt update && sudo apt install -y libsqlite3-dev build-essential || true; \
+	elif command -v yum >/dev/null 2>&1; then \
+		sudo yum install -y sqlite-devel gcc || true; \
+	elif command -v brew >/dev/null 2>&1; then \
+		brew install sqlite || true; \
+	fi
+	@go mod tidy
+	@go clean -cache
+	@echo "🔧 Building with CGO enabled..."
+	@CGO_ENABLED=1 go build -ldflags="-s -w" -o kubeshadow .
+	@chmod +x kubeshadow
+	@echo "✅ KubeShadow built successfully with CGO (SQLite support enabled)!"
 
 # Build without CGO (faster, more reliable)
 build-no-cgo:
@@ -68,7 +86,8 @@ help:
 	@echo "KubeShadow Build System"
 	@echo "======================"
 	@echo "Available targets:"
-	@echo "  build        - Build KubeShadow (auto-detects CGO issues)"
+	@echo "  build        - Build KubeShadow without CGO (default, fast and reliable)"
+	@echo "  build-cgo    - Build with CGO enabled (enables SQLite persistent storage)"
 	@echo "  build-no-cgo - Build without CGO (recommended for compatibility)"
 	@echo "  deps         - Install system and Go dependencies"
 	@echo "  clean        - Clean build artifacts"

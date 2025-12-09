@@ -441,6 +441,7 @@ func deployLabManifests() error {
 		"21-dns-poisoning.yaml",
 		"22-cve-2025-1974-ingress-nginx-rce.yaml",
 		"23-cve-2025-5187-node-ownerreference.yaml",
+		"24-tls-bootstrap-azure.yaml",
 	}
 
 	for _, file := range yamlFiles {
