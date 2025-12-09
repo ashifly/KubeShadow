@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -318,8 +319,21 @@ func deployGCPLab(region, clusterName, clusterSize string, useSpot bool) error {
 		return fmt.Errorf("failed to create GKE cluster: %w", err)
 	}
 
+	// Ensure gke-gcloud-auth-plugin is installed (required for modern GKE clusters)
+	fmt.Println("🔌 Checking for gke-gcloud-auth-plugin...")
+	if err := ensureGKEAuthPlugin(); err != nil {
+		fmt.Printf("⚠️  Warning: Failed to install gke-gcloud-auth-plugin: %v\n", err)
+		fmt.Println("   You may need to install it manually:")
+		fmt.Println("   Run: gcloud components install gke-gcloud-auth-plugin")
+		fmt.Println("   Or:  sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin")
+		return fmt.Errorf("gke-gcloud-auth-plugin is required but not installed. Please install it and try again")
+	}
+
 	// Get cluster credentials
+	fmt.Println("🔑 Getting cluster credentials...")
 	cmd = exec.Command("gcloud", "container", "clusters", "get-credentials", clusterName, "--zone", zone)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to get cluster credentials: %w", err)
 	}
@@ -642,6 +656,66 @@ func normalizeGCPRegion(region string) string {
 		}
 	}
 	return region
+}
+
+// ensureGKEAuthPlugin checks if gke-gcloud-auth-plugin is installed and installs it if not
+func ensureGKEAuthPlugin() error {
+	// Check if plugin is already installed and accessible in PATH
+	cmd := exec.Command("gke-gcloud-auth-plugin", "--version")
+	if err := cmd.Run(); err == nil {
+		// Plugin is already installed
+		fmt.Println("   ✓ gke-gcloud-auth-plugin is already installed")
+		return nil
+	}
+
+	// Plugin not found, try to install
+	fmt.Println("   Installing gke-gcloud-auth-plugin (required for GKE authentication)...")
+	
+	// Try to install via gcloud components first (works on all platforms)
+	installCmd := exec.Command("gcloud", "components", "install", "gke-gcloud-auth-plugin", "--quiet")
+	installCmd.Stdout = os.Stdout
+	installCmd.Stderr = os.Stderr
+	
+	if err := installCmd.Run(); err == nil {
+		// Installation succeeded, verify
+		verifyCmd := exec.Command("gke-gcloud-auth-plugin", "--version")
+		if verifyErr := verifyCmd.Run(); verifyErr == nil {
+			fmt.Println("   ✓ gke-gcloud-auth-plugin installed successfully")
+			return nil
+		}
+		// Installation reported success but plugin still not found
+		fmt.Println("   ⚠️  Installation completed but plugin not found in PATH")
+	}
+
+	// If gcloud components install fails, try platform-specific methods
+	if runtime.GOOS == "linux" {
+		fmt.Println("   Trying alternative installation method (apt-get)...")
+		// Check if we're on a Debian-based system
+		aptCmd := exec.Command("which", "apt-get")
+		if aptCheckErr := aptCmd.Run(); aptCheckErr == nil {
+			aptCmd = exec.Command("sudo", "apt-get", "update", "-qq")
+			aptCmd.Stderr = os.Stderr
+			aptCmd.Run() // Ignore errors, just try
+			
+			aptCmd = exec.Command("sudo", "apt-get", "install", "-y", "google-cloud-sdk-gke-gcloud-auth-plugin")
+			aptCmd.Stdout = os.Stdout
+			aptCmd.Stderr = os.Stderr
+			if aptErr := aptCmd.Run(); aptErr == nil {
+				verifyCmd := exec.Command("gke-gcloud-auth-plugin", "--version")
+				if verifyErr := verifyCmd.Run(); verifyErr == nil {
+					fmt.Println("   ✓ gke-gcloud-auth-plugin installed successfully via apt-get")
+					return nil
+				}
+			}
+		}
+	}
+
+	// All installation methods failed
+	return fmt.Errorf("gke-gcloud-auth-plugin is required but could not be installed automatically. Please install it manually:\n" +
+		"   - Run: gcloud components install gke-gcloud-auth-plugin\n" +
+		"   - Or (Linux): sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin\n" +
+		"   - Or (macOS): brew install gke-gcloud-auth-plugin\n" +
+		"   Then run the lab creation command again")
 }
 
 // getAWSClusterConfig returns AWS-specific cluster configuration

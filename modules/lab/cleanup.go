@@ -31,11 +31,33 @@ This will delete all namespaces, pods, services, and other resources created by 
 			return fmt.Errorf("failed to get cluster-name flag: %w", err)
 		}
 
+		region, err := cmd.Flags().GetString("region")
+		if err != nil {
+			return fmt.Errorf("failed to get region flag: %w", err)
+		}
+
 		fmt.Println("🧹 KubeShadow Lab Cleanup")
 		fmt.Println("=========================")
 
+		// For cloud providers, set default region if not provided
+		if region == "" && contains([]string{"aws", "gcp", "azure"}, provider) {
+			switch provider {
+			case "aws":
+				region = "us-west-2"
+			case "gcp":
+				region = "us-west2"
+			case "azure":
+				region = "eastus"
+			}
+		}
+
 		if !confirm {
-			fmt.Print("⚠️  This will delete ALL lab resources. Continue? (y/N): ")
+			if contains([]string{"aws", "gcp", "azure"}, provider) {
+				fmt.Printf("⚠️  This will DELETE the entire cluster '%s' and ALL its resources in %s.\n", clusterName, region)
+				fmt.Print("⚠️  This action CANNOT be undone. Continue? (y/N): ")
+			} else {
+				fmt.Print("⚠️  This will delete ALL lab resources. Continue? (y/N): ")
+			}
 			var response string
 			fmt.Scanln(&response)
 			if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
@@ -44,17 +66,17 @@ This will delete all namespaces, pods, services, and other resources created by 
 			}
 		}
 
-		// Clean up lab manifests
-		if err := cleanupLabManifests(); err != nil {
-			return fmt.Errorf("failed to cleanup lab manifests: %w", err)
-		}
-
-		// Clean up cluster if requested
+		// Clean up cluster FIRST (before manifests, in case kubectl doesn't work)
 		if contains([]string{"aws", "gcp", "azure", "minikube", "kind"}, provider) {
 			fmt.Printf("🗑️  Removing %s cluster: %s\n", provider, clusterName)
-			if err := cleanupCluster(provider, clusterName); err != nil {
-				fmt.Printf("⚠️  Warning: Failed to cleanup cluster: %v\n", err)
+			if err := cleanupCluster(provider, clusterName, region); err != nil {
+				return fmt.Errorf("failed to cleanup cluster: %w", err)
 			}
+		}
+
+		// Clean up lab manifests (only if kubectl is available)
+		if err := cleanupLabManifests(); err != nil {
+			fmt.Printf("⚠️  Warning: Failed to cleanup lab manifests (cluster may already be deleted): %v\n", err)
 		}
 
 		fmt.Println("✅ Lab cleanup complete!")
@@ -66,11 +88,21 @@ func init() {
 	LabCleanupCmd.Flags().Bool("confirm", false, "Skip confirmation prompt")
 	LabCleanupCmd.Flags().String("provider", "local", "Provider to cleanup (aws, gcp, azure, minikube, kind, local)")
 	LabCleanupCmd.Flags().String("cluster-name", "kubeshadow-lab", "Name of the cluster to cleanup")
+	LabCleanupCmd.Flags().String("region", "", "Cloud region/zone (for cloud providers). For GCP, can be region like 'us-west2' or zone like 'us-west2-b'")
 }
 
 // cleanupLabManifests removes all lab resources
+// This is optional and only runs if kubectl is available
 func cleanupLabManifests() error {
-	fmt.Println("📦 Removing lab resources...")
+	// Check if kubectl is available
+	cmd := exec.Command("kubectl", "version", "--client", "--short")
+	if err := cmd.Run(); err != nil {
+		fmt.Println("⚠️  kubectl not available or not authenticated, skipping manifest cleanup")
+		fmt.Println("   (Cluster deletion should have removed all resources)")
+		return nil
+	}
+
+	fmt.Println("📦 Removing lab resources from cluster...")
 
 	labDir := "modules/lab/manifests"
 	yamlFiles := []string{
@@ -109,32 +141,30 @@ func cleanupLabManifests() error {
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			fmt.Printf("⚠️  Warning: Failed to remove %s: %v\n", file, err)
+			// Ignore errors as cluster may already be deleted
+			continue
 		}
 	}
 
-	// Wait for resources to be deleted
+	// Wait for resources to be deleted (if cluster still exists)
 	fmt.Println("⏳ Waiting for resources to be deleted...")
-	cmd := exec.Command("kubectl", "wait", "--for=delete", "namespace/kubeshadow-lab", "--timeout=60s")
+	cmd = exec.Command("kubectl", "wait", "--for=delete", "namespace/kubeshadow-lab", "--timeout=30s", "--ignore-not-found=true")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("⚠️  Warning: Some resources may still exist: %v\n", err)
-	}
+	cmd.Run() // Ignore errors
 
 	return nil
 }
 
 // cleanupCluster removes the entire cluster
-func cleanupCluster(provider, clusterName string) error {
+func cleanupCluster(provider, clusterName, region string) error {
 	switch provider {
 	case "aws":
-		return cleanupAWSCluster(clusterName)
+		return cleanupAWSCluster(clusterName, region)
 	case "gcp":
-		return cleanupGCPCluster(clusterName)
+		return cleanupGCPCluster(clusterName, region)
 	case "azure":
-		return cleanupAzureCluster(clusterName)
+		return cleanupAzureCluster(clusterName, region)
 	case "minikube":
 		return cleanupMinikubeCluster()
 	case "kind":
@@ -145,61 +175,117 @@ func cleanupCluster(provider, clusterName string) error {
 }
 
 // cleanupAWSCluster deletes EKS cluster
-func cleanupAWSCluster(clusterName string) error {
-	fmt.Println("☁️  Deleting EKS cluster...")
+func cleanupAWSCluster(clusterName, region string) error {
+	fmt.Printf("☁️  Deleting EKS cluster '%s' in region '%s'...\n", clusterName, region)
 
-	cmd := exec.Command("eksctl", "delete", "cluster", "--name", clusterName, "--wait")
+	cmd := exec.Command("eksctl", "delete", "cluster", "--name", clusterName, "--region", region, "--wait")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to delete EKS cluster: %w", err)
+	}
+
+	fmt.Printf("✅ EKS cluster '%s' deleted successfully\n", clusterName)
+	return nil
 }
 
 // cleanupGCPCluster deletes GKE cluster
-func cleanupGCPCluster(clusterName string) error {
-	fmt.Println("☁️  Deleting GKE cluster...")
+func cleanupGCPCluster(clusterName, region string) error {
+	fmt.Printf("☁️  Deleting GKE cluster '%s'...\n", clusterName)
 
-	// Get region from current context
-	cmd := exec.Command("kubectl", "config", "current-context")
-	output, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to get current context: %w", err)
+	// Normalize region format (convert us-west-2 to us-west2)
+	region = normalizeGCPRegion(region)
+
+	// Try to find the cluster and get its zone
+	// First, try using gcloud to list clusters and find the exact location
+	fmt.Println("   Searching for cluster location...")
+	
+	// Try listing clusters in common zones/regions to find the cluster
+	zone := region + "-b" // Default zone format
+	
+	// Check if region is already a zone (contains -a, -b, -c)
+	if strings.HasSuffix(region, "-a") || strings.HasSuffix(region, "-b") || strings.HasSuffix(region, "-c") {
+		zone = region
+	} else {
+		// Try common zones: a, b, c
+		zonesToTry := []string{region + "-b", region + "-a", region + "-c"}
+		clusterFound := false
+		
+		for _, z := range zonesToTry {
+			// Check if cluster exists in this zone
+			checkCmd := exec.Command("gcloud", "container", "clusters", "describe", clusterName, "--zone", z, "--format", "value(name)", "--quiet")
+			output, err := checkCmd.Output()
+			if err == nil && strings.TrimSpace(string(output)) == clusterName {
+				zone = z
+				clusterFound = true
+				fmt.Printf("   Found cluster in zone: %s\n", zone)
+				break
+			}
+		}
+		
+		// If not found in zones, try as a region (regional cluster)
+		if !clusterFound {
+			fmt.Printf("   Cluster not found in zonal locations, trying as regional cluster in: %s\n", region)
+			// Try regional deletion
+			cmd := exec.Command("gcloud", "container", "clusters", "delete", clusterName, "--region", region, "--quiet")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to delete GKE cluster (tried as regional): %w", err)
+			}
+			fmt.Printf("✅ GKE cluster '%s' deleted successfully (regional cluster)\n", clusterName)
+			return nil
+		}
 	}
 
-	// Extract zone from context (simplified) - zonal clusters use zones, not regions
-	zone := "us-west1-b" // Default zone
-	if strings.Contains(string(output), "us-central1") {
-		zone = "us-central1-b"
-	} else if strings.Contains(string(output), "us-east1") {
-		zone = "us-east1-b"
-	}
-
-	cmd = exec.Command("gcloud", "container", "clusters", "delete", clusterName, "--zone", zone, "--quiet")
+	// Delete zonal cluster
+	fmt.Printf("   Deleting cluster in zone: %s\n", zone)
+	cmd := exec.Command("gcloud", "container", "clusters", "delete", clusterName, "--zone", zone, "--quiet")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to delete GKE cluster in zone %s: %w", zone, err)
+	}
+
+	fmt.Printf("✅ GKE cluster '%s' deleted successfully\n", clusterName)
+	return nil
 }
 
 // cleanupAzureCluster deletes AKS cluster
-func cleanupAzureCluster(clusterName string) error {
-	fmt.Println("☁️  Deleting AKS cluster...")
+func cleanupAzureCluster(clusterName, region string) error {
+	fmt.Printf("☁️  Deleting AKS cluster '%s' in region '%s'...\n", clusterName, region)
 
 	resourceGroup := clusterName + "-rg"
+	
+	// Delete AKS cluster
 	cmd := exec.Command("az", "aks", "delete", "--resource-group", resourceGroup, "--name", clusterName, "--yes")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
+		// If resource group doesn't exist, that's okay
+		if strings.Contains(err.Error(), "ResourceGroupNotFound") {
+			fmt.Printf("   Resource group '%s' not found, cluster may already be deleted\n", resourceGroup)
+			return nil
+		}
 		return fmt.Errorf("failed to delete AKS cluster: %w", err)
 	}
 
-	// Delete resource group
-	cmd = exec.Command("az", "group", "delete", "--name", resourceGroup, "--yes")
+	// Delete resource group (optional, but clean up everything)
+	fmt.Printf("   Deleting resource group '%s'...\n", resourceGroup)
+	cmd = exec.Command("az", "group", "delete", "--name", resourceGroup, "--yes", "--no-wait")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("⚠️  Warning: Failed to delete resource group: %v\n", err)
+		// Don't fail the whole operation if resource group deletion fails
+	}
+
+	fmt.Printf("✅ AKS cluster '%s' deleted successfully\n", clusterName)
+	return nil
 }
 
 // cleanupMinikubeCluster stops minikube
