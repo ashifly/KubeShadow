@@ -132,7 +132,7 @@ func (d *Dashboard) Start(port int) error {
 	}
 
 	d.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
+		Addr:    fmt.Sprintf("0.0.0.0:%d", port), // Listen on all interfaces for remote access
 		Handler: mux,
 	}
 

@@ -76,6 +76,11 @@ var DashboardCmd = &cobra.Command{
 			return fmt.Errorf("failed to get port flag: %w", err)
 		}
 
+		background, err := cmd.Flags().GetBool("background")
+		if err != nil {
+			return fmt.Errorf("failed to get background flag: %w", err)
+		}
+
 		dashboardInstance := dashboard.GetInstance()
 		
 		if err := dashboardInstance.Start(port); err != nil {
@@ -91,7 +96,22 @@ var DashboardCmd = &cobra.Command{
 				fmt.Printf("   http://%s:%d\n", ip, port)
 			}
 		}
-		fmt.Println("📊 Use the --dashboard flag with other commands to publish results here")
+		
+		// Show SSH port forwarding instructions for remote access
+		fmt.Println("\n📡 For SSH/Remote Access:")
+		fmt.Printf("   Local port forward: ssh -L %d:localhost:%d user@host\n", port, port)
+		fmt.Println("   Then access: http://localhost:" + fmt.Sprintf("%d", port))
+		fmt.Println("   Or use GCP Console port forwarding feature")
+		
+		fmt.Println("\n📊 Use the --dashboard flag with other commands to publish results here")
+		
+		if background {
+			fmt.Println("✅ Dashboard running in background")
+			fmt.Println("💡 To stop: ./kubeshadow dashboard stop")
+			// Return immediately, dashboard runs in background
+			return nil
+		}
+
 		fmt.Println("Press Ctrl+C to stop the dashboard")
 
 		// Wait for interrupt signal
@@ -106,4 +126,5 @@ var DashboardCmd = &cobra.Command{
 
 func init() {
 	DashboardCmd.Flags().Int("port", 8080, "Port for the dashboard web server")
+	DashboardCmd.Flags().Bool("background", false, "Run dashboard in background (non-blocking)")
 }
