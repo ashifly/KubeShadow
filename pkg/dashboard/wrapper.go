@@ -31,7 +31,7 @@ func WrapCommand(module string, cmd *cobra.Command) *cobra.Command {
 
 	// Wrap with dashboard integration
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		// Check if dashboard is enabled (check both local and persistent flags)
+		// Check if dashboard is explicitly enabled via flag
 		dashboardEnabled := false
 		if localFlag, err := cmd.Flags().GetBool("dashboard"); err == nil {
 			dashboardEnabled = localFlag
@@ -39,6 +39,21 @@ func WrapCommand(module string, cmd *cobra.Command) *cobra.Command {
 		if !dashboardEnabled {
 			if persistentFlag, err := cmd.Root().PersistentFlags().GetBool("dashboard"); err == nil {
 				dashboardEnabled = persistentFlag
+			}
+		}
+
+		// If not explicitly enabled, auto-detect if dashboard is running
+		if !dashboardEnabled {
+			// Check if dashboard is already running (auto-detect)
+			dashboardPort := 8080 // Default port
+			if portFlag, err := cmd.Root().PersistentFlags().GetInt("dashboard-port"); err == nil && portFlag > 0 {
+				dashboardPort = portFlag
+			}
+			
+			// Check if dashboard instance is enabled or if one is running on the port
+			dashboardInstance := GetInstance()
+			if dashboardInstance.IsEnabled() || isDashboardRunningOnPort(dashboardPort) {
+				dashboardEnabled = true
 			}
 		}
 
