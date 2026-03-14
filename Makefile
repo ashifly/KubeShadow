@@ -1,100 +1,85 @@
 # KubeShadow Makefile
-# Automatically handles CGO issues and builds for different environments
 
-.PHONY: build build-cgo build-no-cgo clean install deps test help
+.PHONY: build rebuild build-cgo build-no-cgo clean deps test install help
 
-# Default target
-all: build
-
-# Build with automatic CGO detection and fallback
+# ── Fast incremental build (default) ──────────────────────────────────────────
+# CGO_ENABLED=0: skips compiling go-sqlite3 C code (~200 C files).
+# Dashboard falls back to in-memory mode automatically — no functionality lost.
+# Does NOT clear the cache; uses Go's incremental compilation.
 build:
-	@echo "🔨 Building KubeShadow..."
-	@echo "📦 Checking dependencies... (10%)"
-	@go mod tidy
-	@echo "🧹 Cleaning previous builds... (20%)"
-	@go clean -cache
-	@echo "🔧 Building without CGO (fast and reliable)... (30%)"
-	@echo "⏳ Compiling Go modules... (40%)"
+	@echo "🔨 Building KubeShadow (incremental, CGO off)..."
 	@CGO_ENABLED=0 go build -ldflags="-s -w" -o kubeshadow .
-	@echo "✅ Build successful! (100%)"
-	@echo "🔧 Making executable... (90%)"
 	@chmod +x kubeshadow
-	@echo "🎉 KubeShadow built successfully! (100%)"
-	@echo "💡 Run './kubeshadow help' to get started"
+	@echo "✅ Done — ./kubeshadow help to get started"
 
-# Build with CGO (enables SQLite persistent storage)
+# Alias
+fast: build
+
+# ── Full clean rebuild (use when deps change or cache is stale) ───────────────
+rebuild:
+	@echo "🔨 Full rebuild (cleaning cache first)..."
+	@go mod tidy
+	@go clean -cache
+	@CGO_ENABLED=0 go build -ldflags="-s -w" -o kubeshadow .
+	@chmod +x kubeshadow
+	@echo "✅ Full rebuild complete"
+
+# ── Build with CGO (enables SQLite persistent dashboard storage) ──────────────
 build-cgo:
-	@echo "🔨 Building KubeShadow with CGO (SQLite support)..."
-	@echo "📦 Installing system dependencies if needed..."
+	@echo "🔨 Building with CGO (SQLite support)..."
 	@if command -v apt-get >/dev/null 2>&1; then \
-		sudo apt update && sudo apt install -y libsqlite3-dev build-essential || true; \
-	elif command -v yum >/dev/null 2>&1; then \
-		sudo yum install -y sqlite-devel gcc || true; \
+		sudo apt-get install -y --no-install-recommends libsqlite3-dev build-essential || true; \
 	elif command -v brew >/dev/null 2>&1; then \
 		brew install sqlite || true; \
 	fi
-	@go mod tidy
-	@go clean -cache
-	@echo "🔧 Building with CGO enabled..."
 	@CGO_ENABLED=1 go build -ldflags="-s -w" -o kubeshadow .
 	@chmod +x kubeshadow
-	@echo "✅ KubeShadow built successfully with CGO (SQLite support enabled)!"
+	@echo "✅ CGO build complete (SQLite dashboard storage enabled)"
 
-# Build without CGO (faster, more reliable)
-build-no-cgo:
-	@echo "🔨 Building KubeShadow without CGO..."
-	@go mod tidy
-	@go clean -cache
-	@CGO_ENABLED=0 go build -ldflags="-s -w" -o kubeshadow .
-	@chmod +x kubeshadow
-	@echo "✅ KubeShadow built successfully without CGO!"
+# Alias
+build-no-cgo: build
 
-# Install dependencies
+# ── Download dependencies (one-time setup) ───────────────────────────────────
 deps:
-	@echo "📦 Installing system dependencies..."
-	@if command -v apt-get >/dev/null 2>&1; then \
-		sudo apt update && sudo apt install -y libsqlite3-dev build-essential; \
-	elif command -v yum >/dev/null 2>&1; then \
-		sudo yum install -y sqlite-devel gcc; \
-	elif command -v brew >/dev/null 2>&1; then \
-		brew install sqlite; \
-	fi
-	@echo "📦 Installing Go dependencies..."
+	@echo "📦 Downloading Go modules..."
 	@go mod download
 	@go mod tidy
+	@echo "✅ Dependencies ready"
 
-# Clean build artifacts
+# ── Clean ─────────────────────────────────────────────────────────────────────
 clean:
-	@echo "🧹 Cleaning build artifacts..."
+	@go clean
+	@rm -f kubeshadow
+	@echo "✅ Cleaned build artifacts (cache preserved)"
+
+clean-all:
 	@go clean -cache -modcache
 	@rm -f kubeshadow
-	@echo "✅ Clean complete"
+	@echo "✅ Full clean (cache + module cache cleared)"
 
-# Install to system
+# ── Install to system ─────────────────────────────────────────────────────────
 install: build
-	@echo "📦 Installing KubeShadow to system..."
 	@sudo cp kubeshadow /usr/local/bin/
-	@echo "✅ KubeShadow installed to /usr/local/bin/"
+	@echo "✅ Installed to /usr/local/bin/kubeshadow"
 
-# Run tests
+# ── Tests ─────────────────────────────────────────────────────────────────────
 test:
-	@echo "🧪 Running tests..."
-	@go test ./...
+	@CGO_ENABLED=0 go test ./...
 
-# Show help
+# ── Help ──────────────────────────────────────────────────────────────────────
 help:
-	@echo "KubeShadow Build System"
-	@echo "======================"
-	@echo "Available targets:"
-	@echo "  build        - Build KubeShadow without CGO (default, fast and reliable)"
-	@echo "  build-cgo    - Build with CGO enabled (enables SQLite persistent storage)"
-	@echo "  build-no-cgo - Build without CGO (recommended for compatibility)"
-	@echo "  deps         - Install system and Go dependencies"
-	@echo "  clean        - Clean build artifacts"
-	@echo "  install      - Install to system (/usr/local/bin/)"
-	@echo "  test         - Run tests"
-	@echo "  help         - Show this help"
+	@echo "KubeShadow Build Targets"
+	@echo "========================"
+	@echo "  make build       Fast incremental build, CGO off (default)"
+	@echo "  make rebuild     Full clean rebuild — use after dep changes"
+	@echo "  make build-cgo   Build with SQLite dashboard storage (needs gcc)"
+	@echo "  make deps        Download/verify Go modules (run once)"
+	@echo "  make clean       Remove binary (keeps build cache)"
+	@echo "  make clean-all   Remove binary + full cache wipe"
+	@echo "  make install     Install to /usr/local/bin/"
+	@echo "  make test        Run tests"
 	@echo ""
-	@echo "Quick start:"
-	@echo "  make build   # Build with automatic CGO handling"
-	@echo "  ./kubeshadow help"
+	@echo "Why is the build fast?"
+	@echo "  - Incremental: only changed packages recompile"
+	@echo "  - CGO_ENABLED=0: skips sqlite3 C compilation"
+	@echo "  - go mod tidy only runs on 'rebuild' or 'deps'"
